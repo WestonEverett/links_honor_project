@@ -1,16 +1,26 @@
-fun mainPage (_) {
-  page
-    <html>
+fun add(num) {
+   <html>
     <body>
-    <h1>Hello World!</h1>
-    </body>
-    </html>
+    <h1>Enter a Number</h1>
+     <form l:onsubmit="{replaceDocument(add(num + stringToInt(newnum)))}">
+       <input l:name="newnum"/>
+       <button type="submit">Add to total</button>
+     </form>
+     <table>
+      {intToXml(num)}
+      </table>
+     </body>
+   </html>
 }
 
+fun mainPage(_) {
+  page
+   <#>{add(0)}</#>
+}
 
 fun main () {
-  addRoute("",mainPage);
-  servePages()
+ addRoute("",mainPage);
+ servePages()
 }
 
 main()
