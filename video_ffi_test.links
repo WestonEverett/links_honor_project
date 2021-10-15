@@ -1,0 +1,32 @@
+module LocalVid {
+  alien javascript "/js/local_vid.js" {
+    play_video : () ~%~> ();
+  }
+}
+
+fun displayVid() client {
+  var vidXML = <video id = "vid" autoplay = "true"></video>;
+  appendChildren(vidXML, getNodeById("vid_display"));
+  LocalVid.play_video()
+}
+
+fun mainPage(_) {
+  page
+    <html>
+      <body>
+        <div id="vid_display">
+            <form l:onsubmit="{displayVid()}">
+              <input type="submit"/>
+            </form>
+        </div>
+      </body>
+    </html>
+}
+
+fun main() {
+  addRoute("/", mainPage);
+  addStaticRoute("/js", "js", [("js", "text/javascript")]);
+  servePages()
+}
+
+main()
