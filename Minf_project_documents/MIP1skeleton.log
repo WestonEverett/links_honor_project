@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019/Debian) (preloaded format=latex 2021.10.18)  18 OCT 2021 14:35
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019/Debian) (preloaded format=latex 2021.10.18)  22 OCT 2021 01:21
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -301,9 +301,34 @@ Chapter 2.
 [3
 
 ]
+Overfull \hbox (81.06346pt too wide) in paragraph at lines 101--102
+\OT1/ptm/m/n/12 events with gather.town alone claim-ing to have held over 10,00
+0 (https://www.gather.town/conferences).
+ []
+
+
+Overfull \hbox (94.56218pt too wide) in paragraph at lines 103--104
+[]\OT1/ptm/m/n/12 However, users also have com-plaints about the sys-tem (https
+://news.ycombinator.com/item?id=25039370).
+ []
+
+[4]
+Overfull \hbox (36.99805pt too wide) in paragraph at lines 117--118
+[]\OT1/ptm/m/n/12 Links has a web server model that will be used in this projec
+t (de-tailed https://github.com/links-
+ []
+
+
+Overfull \hbox (268.6214pt too wide) in paragraph at lines 121--122
+\OT1/ptm/m/n/12 way to use a lo-gin to au-then-ti-cate users. Other pro-vided e
+x-am-ple code (https://gist.github.com/SimonJF/cac22ed65c43c452a6fbde52213bb425
+)
+ []
+
+[5] [6]
 Chapter 3.
 No file MIP1skeleton.bbl.
-[4
+[7
 
 ] (./MIP1skeleton.aux)
 
@@ -313,10 +338,10 @@ LaTeX Warning: There were undefined references.
 Here is how much of TeX's memory you used:
  3576 strings out of 483184
  55463 string characters out of 5966317
- 293729 words of memory out of 5000000
+ 295729 words of memory out of 5000000
  18565 multiletter control sequences out of 15000+600000
  550816 words of font info for 63 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 49i,5n,46p,799b,296s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 49i,5n,46p,1029b,296s stack positions out of 5000i,500n,10000p,200000b,80000s
 
-Output written on MIP1skeleton.dvi (8 pages, 10216 bytes).
+Output written on MIP1skeleton.dvi (11 pages, 23572 bytes).
