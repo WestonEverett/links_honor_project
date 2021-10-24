@@ -1,6 +1,6 @@
 module LocalVid {
   alien javascript "/js/local_vid.js" {
-    play_video : () ~%~> ();
+    play_video : () ~> ();
   }
 }
 

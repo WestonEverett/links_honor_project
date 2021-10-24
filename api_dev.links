@@ -1,0 +1,105 @@
+module JSFFI {
+  alien javascript "/js/vid_calling.js" {
+    playLocalVideo : (String) ~> ();
+  }
+}
+
+fun displayLocalVid() {
+  var vidXML = <video id = "local_vid" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
+  appendChildren(vidXML, getNodeById("vids"));
+  JSFFI.playLocalVideo("local_vid")
+}
+
+### CLIENT
+
+## Loop thread run on the client, listens for NewClient messages from the server
+## and prints a message to the console whenever one is received
+fun clientLoop() {
+    receive {
+        case NewClient(n) ->
+            print("New client registered.");
+            clientLoop()
+    }
+}
+
+## Run on the client whenever the page has loaded.
+## Registers itself with the server, then proceeds to loop, awaiting messages
+## from the server
+fun clientRegister(serverPid) {
+    serverPid ! Register(self());
+    displayLocalVid();
+
+    clientLoop()
+}
+
+fun video_page(serverPid) {
+
+  var clientPid = spawnClient { clientRegister(serverPid) };
+
+  page
+  <html>
+    <body>
+    <div id = "vids"></div>
+    </body>
+  </html>
+
+}
+
+#fun init_all(name, serverPid){
+#  replaceDocument(video_page(ent_name));
+#  var clientPid = spawnClient { clientRegister(serverPid) }
+#}
+
+## Run on the server to generate a page for the client. Spawns a process on the
+## client and generates the HTML.
+
+#fun entryPage(serverPid) {
+
+#  page
+#  <html>
+#   <body>
+#   <h1>Enter Your Name</h1>
+#    <form l:onsubmit="{init_all(ent_name, serverPid)}">
+#      <input l:name="ent_name"/>
+#      <button type="submit">Enter Name</button>
+#    </form>
+#    </body>
+#  </html>
+#}
+
+### SERVER
+## Sends a message to a list of clients
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case c::clients ->
+            c ! msg;
+            broadcast(clients, msg)
+    }
+}
+
+# Loops, keeping track of the client PIDs
+fun serverLoop(clients) server {
+    receive {
+        case Register(pid) ->
+            var newClients = pid :: clients;
+            # Broadcast a "New Client" message
+            broadcast(newClients, NewClient);
+            serverLoop(newClients)
+    }
+}
+
+
+# Main method, run once when the server is started
+fun main() {
+    # Spawns a process on the server which keeps track of all clients
+    var serverPid = spawn { serverLoop([]) };
+    # Registers the "mainPage" route
+    addRoute("/", fun(_) { video_page(serverPid) });
+    addStaticRoute("/js", "js", [("js", "text/javascript")]);
+    # Starts the server and distribution
+    serveWebsockets();
+    servePages()
+}
+
+main()

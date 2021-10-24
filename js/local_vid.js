@@ -1,5 +1,3 @@
-'use strict';
-
 async function _play_video() {
 
   const constraints = window.constraints = {
