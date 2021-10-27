@@ -1,6 +1,11 @@
 module JSFFI {
   alien javascript "/js/vid_calling.js" {
     playLocalVideo : (String) ~> ();
+    setName : () ~> ();
+    getLocalName : () ~> (String);
+    toString : (String) ~> (String);
+    getID: () ~> (String);
+    setID: () ~> ();
   }
 }
 
@@ -10,29 +15,86 @@ fun displayLocalVid() {
   JSFFI.playLocalVideo("local_vid")
 }
 
+fun getSelfInfo() {
+  var name = JSFFI.getLocalName();
+  var id = JSFFI.getID();
+
+  (clientName = name, clientID = id)
+}
+
+##WebRTC Functions
+
+fun attemptCall(msg){
+
+}
+
+
 ### CLIENT
+
+##Message Types:
+##VidMessage(senderInfo = (clientName=name, clientID=id), msgType = type)
+
+fun handleVidMessage(msg) {
+  var localInfo = getSelfInfo();
+  var foreignInfo = msg.senderInfo;
+  var type = JSFFI.toString(msg.msgType);
+
+  switch(type) {
+    case "initial" ->
+    print("something");
+    
+    ()
+
+    case "offer" ->
+    print("something");
+    ()
+
+    case "accept" ->
+    print("something");
+    ()
+  };
+
+  ()
+}
 
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
-fun clientLoop() {
+fun clientLoop(serverPid) {
     receive {
-        case NewClient(n) ->
+        case NewClient(msg) ->
             print("New client registered.");
-            clientLoop()
+            clientLoop(serverPid)
+
+        case VidMessage(msg) ->
+          print("VidMessage Received");
+          handleVidMessage(msg);
+          clientLoop(serverPid)
     }
+
 }
 
 ## Run on the client whenever the page has loaded.
 ## Registers itself with the server, then proceeds to loop, awaiting messages
 ## from the server
 fun clientRegister(serverPid) {
-    serverPid ! Register(self());
+
+    JSFFI.setName();
+    JSFFI.setID();
+
+
     displayLocalVid();
 
-    clientLoop()
+    var clientInfo = getSelfInfo();
+
+    serverPid ! Register(self(), clientInfo);
+
+    clientLoop(serverPid)
 }
 
-fun video_page(serverPid) {
+## Run on the server to generate a page for the client. Spawns a process on the
+## client and generates the HTML.
+
+fun mainPage(serverPid) {
 
   var clientPid = spawnClient { clientRegister(serverPid) };
 
@@ -40,39 +102,18 @@ fun video_page(serverPid) {
   <html>
     <body>
     <div id = "vids"></div>
+    <div id = "users"></div>
     </body>
   </html>
 
 }
-
-#fun init_all(name, serverPid){
-#  replaceDocument(video_page(ent_name));
-#  var clientPid = spawnClient { clientRegister(serverPid) }
-#}
-
-## Run on the server to generate a page for the client. Spawns a process on the
-## client and generates the HTML.
-
-#fun entryPage(serverPid) {
-
-#  page
-#  <html>
-#   <body>
-#   <h1>Enter Your Name</h1>
-#    <form l:onsubmit="{init_all(ent_name, serverPid)}">
-#      <input l:name="ent_name"/>
-#      <button type="submit">Enter Name</button>
-#    </form>
-#    </body>
-#  </html>
-#}
 
 ### SERVER
 ## Sends a message to a list of clients
 fun broadcast(clients, msg) server {
     switch (clients) {
         case [] -> ()
-        case c::clients ->
+        case (c,_)::clients ->
             c ! msg;
             broadcast(clients, msg)
     }
@@ -81,11 +122,20 @@ fun broadcast(clients, msg) server {
 # Loops, keeping track of the client PIDs
 fun serverLoop(clients) server {
     receive {
-        case Register(pid) ->
-            var newClients = pid :: clients;
+        case Register(pid, clientInfo) ->
+            var newClients = (pid, clientInfo) :: clients;
             # Broadcast a "New Client" message
-            broadcast(newClients, NewClient);
+            broadcast(newClients, NewClient(clientInfo));
             serverLoop(newClients)
+
+        case Send(targets, msg) ->
+          broadcast(targets, msg);
+          serverLoop(clients)
+
+        case Broadcast(msg) ->
+          broadcast(clients, msg);
+          serverLoop(clients)
+
     }
 }
 
@@ -95,11 +145,12 @@ fun main() {
     # Spawns a process on the server which keeps track of all clients
     var serverPid = spawn { serverLoop([]) };
     # Registers the "mainPage" route
-    addRoute("/", fun(_) { video_page(serverPid) });
+    addRoute("/", fun(_) { mainPage(serverPid) });
     addStaticRoute("/js", "js", [("js", "text/javascript")]);
     # Starts the server and distribution
     serveWebsockets();
     servePages()
 }
+
 
 main()
