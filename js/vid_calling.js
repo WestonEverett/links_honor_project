@@ -51,19 +51,27 @@ const offerOptions = {
 
 async function _createOffer() {
   pc = new RTCPeerConnection();
-  offer = await pc.createOffer(offerOptions);
+  var offer = await pc.createOffer(offerOptions);
   await pc.setLocalDescription(offer);
 
-  return offer;
+  var offerStr = JSON.stringify(offer)
+
+  console.log(offerStr);
+
+  return offerStr;
 }
 
-async function _receiveOffer(offer) {
+async function _receiveOffer(offerStr) {
+  console.log(offerStr);
+  var offer = JSON.parse(offerStr);
+
   pc = new RTCPeerConnection();
   await pc.setRemoteDescription(offer);
-  answer = await pc.createAnswer();
+  var answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
 
-  return answer;
+  var answerStr = JSON.stringify(answer);
+  return answerStr;
 }
 
 var playLocalVideo = LINKS.kify(_playLocalVideo);

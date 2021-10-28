@@ -35,51 +35,46 @@ fun attemptCall(msg){
 ### CLIENT
 
 ##Message Types:
-##VidMessage(senderInfo = (clientName=name, clientID=id), destInfo = (clientName=name, clientID=id), msgType = type, data = data)
+##VidMessage(senderID = id, destID = id, msgType = type, data = data)
 
 fun handleVidMessage(serverPid, msg) {
 
   var localID = JSFFI.getID();
-  var localName = JSFFI.getLocalName();
 
-  var destInfo = msg.destInfo;
-  var destID = JSFFI.toString(destInfo.clientID);
-  var destName = JSFFI.toString(destInfo.clientName);
+  var destID = JSFFI.toString(msg.destID);
 
-  var foreignInfo = msg.senderInfo;
-  var foreignID = JSFFI.toString(foreignInfo.clientID);
-  var foreignName = JSFFI.toString(foreignInfo.clientName);
+  var foreignID = JSFFI.toString(msg.senderID);
 
   var type = JSFFI.toString(msg.msgType);
 
-  if(foreignID == localID) {
-    print("Vid is from me I guess");
-    print(foreignID);
-    print(localID)
-  }
-  else if(localID <> destID) {
-    print("Vid not for me");
-    print(localID);
-    print(destID)
+  print("I am " ^^ localID ^^ " this is for " ^^ destID ^^ " from " ^^ foreignID);
+
+  if(localID <> destID) {
+    print("I don't think this is for me")
   }
   else {
 
+    print("I think this is for me");
+
     switch(type) {
       case "initial" ->
-        print("initial VidMessage received");
+        print("This is an initial VidMessage");
         var offerStr = JSFFI.createOffer();
-        serverPid ! Broadcast(VidMessage(senderInfo = (clientID=localID, clientName=localName), destInfo = (clientID=foreignID, clientName=foreignName), msgType = "offer", data = offerStr));
+        print(offerStr);
+        serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "offer", data = offerStr));
+        print("I am " ^^ localID ^^ " sending an offer to " ^^ foreignID);
         ()
 
       case "offer" ->
-        print("offer VidMessage received");
+        print("This is an offer VidMessage");
         var offerStr = JSFFI.toString(msg.data);
         var acceptStr = JSFFI.receiveOffer(offerStr);
-        serverPid ! Broadcast(VidMessage(senderInfo = (clientID=localID, clientName=localName), destInfo = (clientID=foreignID, clientName=foreignName), msgType = "accept", data = acceptStr));
+        serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "accept", data = acceptStr));
+        print("I am " ^^ localID ^^ " sending an accept to " ^^ foreignID);
         ()
 
-        case "accept" ->
-        print("something");
+      case "accept" ->
+        print("accept VidMessage received");
         ()
     }
   }
@@ -90,33 +85,29 @@ fun handleVidMessage(serverPid, msg) {
 fun clientLoop(serverPid) {
     receive {
         case NewClient(msg) ->
-            print("New client registered.");
-
-            var localInfo = getSelfInfo();
 
             var localID = JSFFI.getID();
+
+            print("New client registered " ^^ localID);
 
             var foreignID = JSFFI.toString(msg.clientID);
 
 
             if(localID <> foreignID) {
-              serverPid ! Broadcast(VidMessage(senderInfo = localInfo, destInfo = msg, msgType = "initial", data = ""));
+              serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "initial", data = ""));
               print("New User!");
-              print(localID);
-              print(foreignID);
+              print(localID ^^ "," ^^ foreignID);
               clientLoop(serverPid)
             }
             else {
               print("My own register");
-              print(localID);
-              print(foreignID);
+              print(localID ^^ "," ^^ foreignID);
               clientLoop(serverPid)
             }
 
 
         case VidMessage(msg) ->
-          print("VidMessage Received from ");
-          print(JSFFI.toString(msg.senderInfo.clientID));
+          print("VidMessage Received from " ^^ JSFFI.toString(msg.senderID));
           handleVidMessage(serverPid, msg);
           clientLoop(serverPid)
     }
