@@ -24,7 +24,7 @@ function _getID() {
 var getLocalName = LINKS.kify(_getLocalName);
 var setName = LINKS.kify(_setName);
 var toString = LINKS.kify(_toStr);
-var getID = LINKS.kify(_setID);
+var setID = LINKS.kify(_setID);
 var getID = LINKS.kify(_getID);
 
 async function _playLocalVideo(ID) {
@@ -43,8 +43,29 @@ async function _playLocalVideo(ID) {
   }
 }
 
-function _createOffer() {
-  
+let pc;
+const offerOptions = {
+  offerToReceiveAudio: 1,
+  offerToReceiveVideo: 1
+};
+
+async function _createOffer() {
+  pc = new RTCPeerConnection();
+  offer = await pc.createOffer(offerOptions);
+  await pc.setLocalDescription(offer);
+
+  return offer;
+}
+
+async function _receiveOffer(offer) {
+  pc = new RTCPeerConnection();
+  await pc.setRemoteDescription(offer);
+  answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+
+  return answer;
 }
 
 var playLocalVideo = LINKS.kify(_playLocalVideo);
+var createOffer = LINKS.kify(_createOffer);
+var receiveOffer = LINKS.kify(_receiveOffer);
