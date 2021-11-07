@@ -1,8 +1,8 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019/Debian) (preloaded format=pdflatex 2021.10.18)  22 OCT 2021 13:54
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019/Debian) (preloaded format=pdflatex 2021.10.18)  7 NOV 2021 19:32
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**MIP1skeleton.tex
+**MIP1skeleton
 (./MIP1skeleton.tex
 LaTeX2e <2020-02-02> patch level 2
 L3 programming layer <2020-02-14> (./infthesis.cls
@@ -329,35 +329,111 @@ Overfull \hbox (46.65967pt too wide) in paragraph at lines 105--106
 https://www.gather.town/conferences),
  []
 
+! Missing $ inserted.
+<inserted text> 
+                $
+l.107 ...le/Colin-Mcclure-3/publication/353223799_
+                                                  Gathertown_An_opportunity_...
 
-Overfull \hbox (6.15822pt too wide) in paragraph at lines 105--106
-\OT1/ptm/m/n/12 statis-tics on gather.town us-age (https://www.similarweb.com/w
-ebsite/gather.town/) does
+? 
+! Double subscript.
+l.107 ...opportunity_for_self-paced_learning_in_a_
+                                                  synchronous_distance-learn...
+
+? 
+! Double subscript.
+l.107 ...ion_in_Online_Computer_Science_Courses_-_
+                                                  An_Explorative_Case_Study/...
+
+? 
+! Missing $ inserted.
+<inserted text> 
+                $
+l.108 
+      
+? 
+
+Overfull \hbox (21.4458pt too wide) in paragraph at lines 107--108
+\OT1/ptm/m/n/12 still sig-nif-i-cantly worse than in per-son teaching(https://w
+ww.researchgate.net/profile/Colin-
  []
 
 
-Overfull \hbox (94.56218pt too wide) in paragraph at lines 109--110
-\OT1/ptm/m/n/12 However, users also have com-plaints about the sys-tem (https:/
-/news.ycombinator.com/item?id=25039370).
+Overfull \hbox (121.47299pt too wide) in paragraph at lines 107--108
+\OT1/ptm/m/n/12 Mcclure-3/publication/353223799$[]\OML/ptmcm/m/it/12 athertown[
+]n[]pportunity[]or[]elf \OMS/pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/12 paced[]earning
+[]n[][]ynchronous[]istance \OMS/pzccm/m/n/12 ^^@
  []
 
-[4] [5]
-Overfull \hbox (36.99805pt too wide) in paragraph at lines 125--126
+
+Overfull \hbox (37.8906pt too wide) in paragraph at lines 107--108
+\OML/ptmcm/m/it/12 learning[]nvironment=links=\OT1/ptmcm/m/n/12 60\OML/ptmcm/m/
+it/12 f\OT1/ptmcm/m/n/12 82\OML/ptmcm/m/it/12 c\OT1/ptmcm/m/n/12 692\OML/ptmcm/
+m/it/12 bf\OT1/ptmcm/m/n/12 3553\OML/ptmcm/m/it/12 b\OT1/ptmcm/m/n/12 2902798\O
+ML/ptmcm/m/it/12 e=Gathertown \OMS/pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/12 An \OMS/
+pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/12 opportunity \OMS/pzccm/m/n/12 ^^@
+ []
+
+
+Overfull \hbox (567.91118pt too wide) in paragraph at lines 107--108
+\OML/ptmcm/m/it/12 for \OMS/pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/12 self \OMS/pzccm
+/m/n/12 ^^@ \OML/ptmcm/m/it/12 paced \OMS/pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/12 l
+earning \OMS/pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/12 in \OMS/pzccm/m/n/12 ^^@ \OML/
+ptmcm/m/it/12 a \OMS/pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/12 synchronous \OMS/pzccm
+/m/n/12 ^^@ \OML/ptmcm/m/it/12 distance \OMS/pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/1
+2 learning \OMS/pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/12 environment:pdf\OT1/ptmcm/m
+/n/12 )\OML/ptmcm/m/it/12 :Anothersmallercasestudy\OT1/ptmcm/m/n/12 (16\OML/ptm
+cm/m/it/12 students\OT1/ptmcm/m/n/12 )\OML/ptmcm/m/it/12 involvingtwodifferentu
+niversitycoursesfoundasimilarresult\OT1/ptmcm/m/n/12 (\OML/ptmcm/m/it/12 https 
+\OT1/ptmcm/m/n/12 :
+ []
+
+
+Overfull \hbox (15.74191pt too wide) in paragraph at lines 107--108
+\OML/ptmcm/m/it/12 ==www:researchgate:net=profile=Bernhard \OMS/pzccm/m/n/12 ^^
+@ \OML/ptmcm/m/it/12 Standl=publication=\OT1/ptmcm/m/n/12 355061975[]\OML/ptmcm
+/m/it/12 tudent \OMS/pzccm/m/n/12 ^^@
+ []
+
+
+Overfull \hbox (178.54523pt too wide) in paragraph at lines 107--108
+\OML/ptmcm/m/it/12 Collaboration[]n[]nline[]omputer[]cience[]ourses[][]n[]xplor
+ative[]ase[]tudy=links=\OT1/ptmcm/m/n/12 615\OML/ptmcm/m/it/12 c\OT1/ptmcm/m/n/
+12 30995\OML/ptmcm/m/it/12 a\OT1/ptmcm/m/n/12 481543\OML/ptmcm/m/it/12 a\OT1/pt
+mcm/m/n/12 87\OML/ptmcm/m/it/12 f\OT1/ptmcm/m/n/12 3793\OML/ptmcm/m/it/12 =Stud
+ent \OMS/pzccm/m/n/12 ^^@
+ []
+
+
+Overfull \hbox (135.70328pt too wide) in paragraph at lines 107--108
+\OML/ptmcm/m/it/12 Case \OMS/pzccm/m/n/12 ^^@ \OML/ptmcm/m/it/12 Study:pdf\OT1/
+ptmcm/m/n/12 )\OML/ptmcm/m/it/12 ; soitisthereforereasonabletoconcludethatGathe
+r:towniseffectiveineducationalenvironments:$ 
+ []
+
+[4]
+Overfull \hbox (82.02124pt too wide) in paragraph at lines 115--116
+\OT1/ptm/m/n/12 so-ci-a-tion of In-ter-net Re-searchers (https://journals.uic.e
+du/ojs/index.php/spir/article/view/12188/10324).
+ []
+
+[5]
+Overfull \hbox (36.99805pt too wide) in paragraph at lines 131--132
 []\OT1/ptm/m/n/12 Links has a web server model that will be used in this projec
 t (de-tailed https://github.com/links-
  []
 
 
-Overfull \hbox (268.6214pt too wide) in paragraph at lines 129--130
-\OT1/ptm/m/n/12 way to use a lo-gin to au-then-ti-cate users. Other pro-vided e
-x-am-ple code (https://gist.github.com/SimonJF/cac22ed65c43c452a6fbde52213bb425
-)
+Overfull \hbox (110.13892pt too wide) in paragraph at lines 135--136
+\OT1/ptm/m/n/12 users. Other pro-vided ex-am-ple code (https://gist.github.com/
+SimonJF/cac22ed65c43c452a6fbde52213bb425)
  []
 
-[6] [7]
+[6] [7] [8]
 Chapter 3.
-No file MIP1skeleton.bbl.
-[8
+(./MIP1skeleton.bbl [9
+
+]) [10
 
 ] (./MIP1skeleton.aux)
 
@@ -365,25 +441,28 @@ LaTeX Warning: There were undefined references.
 
  ) 
 Here is how much of TeX's memory you used:
- 4037 strings out of 483183
- 61855 string characters out of 5966291
- 300071 words of memory out of 5000000
- 18997 multiletter control sequences out of 15000+600000
- 565921 words of font info for 78 fonts, out of 8000000 for 9000
+ 4049 strings out of 483183
+ 61949 string characters out of 5966291
+ 302074 words of memory out of 5000000
+ 18998 multiletter control sequences out of 15000+600000
+ 570631 words of font info for 87 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 49i,5n,46p,1329b,296s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 49i,6n,46p,1325b,296s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}</usr/share/texliv
-e/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></usr/share/texlive/texmf-dist/
-fonts/type1/urw/helvetic/uhvb8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/
-urw/helvetic/uhvr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/helvetic
-/uhvro8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></
-usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmbi8a.pfb></usr/share/texl
-ive/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/share/texlive/texmf-dist/
-fonts/type1/urw/times/utmri8a.pfb>
-Output written on MIP1skeleton.pdf (12 pages, 96015 bytes).
+e/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texm
+f-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/
+fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/
+type1/urw/courier/ucrr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/hel
+vetic/uhvb8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/helvetic/uhvr8a
+.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/helvetic/uhvro8a.pfb></usr/
+share/texlive/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/share/texlive/t
+exmf-dist/fonts/type1/urw/times/utmbi8a.pfb></usr/share/texlive/texmf-dist/font
+s/type1/urw/times/utmr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/tim
+es/utmri8a.pfb>
+Output written on MIP1skeleton.pdf (14 pages, 127049 bytes).
 PDF statistics:
- 76 PDF objects out of 1000 (max. 8388607)
- 53 compressed objects within 1 object stream
+ 95 PDF objects out of 1000 (max. 8388607)
+ 67 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 
