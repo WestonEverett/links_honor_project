@@ -7,8 +7,10 @@ module JSFFI {
     getID: () ~> (String);
     setID: () ~> ();
 
-    createOffer: () ~> (String);
-    receiveOffer: (String) ~> (String);
+    createOffer: () ~> ();
+    checkOffer: () ~> (String);
+    receiveOffer: (String) ~> ();
+    checkAnswer: () ~> (String);
   }
 }
 
@@ -31,6 +33,29 @@ fun attemptCall(msg){
 
 }
 
+fun waitToFinishOffer(){
+
+  var response = JSFFI.checkOffer();
+
+  if (response <> "wait") {
+    response
+    }
+    else {
+      waitToFinishOffer()
+    }
+}
+
+fun waitToFinishAnswer(){
+
+  var response = JSFFI.checkAnswer();
+
+  if (response <> "wait") {
+    response
+    }
+    else {
+      waitToFinishAnswer()
+    }
+}
 
 ### CLIENT
 
@@ -59,7 +84,8 @@ fun handleVidMessage(serverPid, msg) {
     switch(type) {
       case "initial" ->
         print("This is an initial VidMessage");
-        var offerStr = JSFFI.createOffer();
+        JSFFI.createOffer();
+        var offerStr = waitToFinishOffer();
         print(offerStr);
         serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "offer", data = offerStr));
         print("I am " ^^ localID ^^ " sending an offer to " ^^ foreignID);
@@ -68,7 +94,10 @@ fun handleVidMessage(serverPid, msg) {
       case "offer" ->
         print("This is an offer VidMessage");
         var offerStr = JSFFI.toString(msg.data);
-        var acceptStr = JSFFI.receiveOffer(offerStr);
+        JSFFI.receiveOffer(offerStr);
+
+        var acceptStr = waitToFinishAnswer();
+
         serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "accept", data = acceptStr));
         print("I am " ^^ localID ^^ " sending an accept to " ^^ foreignID);
         ()

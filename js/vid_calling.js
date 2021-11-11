@@ -43,37 +43,51 @@ async function _playLocalVideo(ID) {
   }
 }
 
+let offerStr = "wait";
+let answerStr = "wait";
 let pc;
+
 const offerOptions = {
   offerToReceiveAudio: 1,
   offerToReceiveVideo: 1
 };
 
 async function _createOffer() {
+
+  offerStr = "wait";
+
   pc = new RTCPeerConnection();
-  var offer = await pc.createOffer(offerOptions);
+  var offer = await pc.createOffer(offerOptions)
   await pc.setLocalDescription(offer);
 
-  var offerStr = JSON.stringify(offer)
+  offerStr = JSON.stringify(offer);
 
-  console.log(offerStr);
+}
 
+function _checkOffer() {
   return offerStr;
 }
 
-async function _receiveOffer(offerStr) {
-  console.log(offerStr);
-  var offer = JSON.parse(offerStr);
+function _checkAnswer() {
+  return answerStr;
+}
+
+async function _receiveOffer(newOfferStr) {
+
+  answerStr = "wait";
+
+  var offer = JSON.parse(newOfferStr);
 
   pc = new RTCPeerConnection();
   await pc.setRemoteDescription(offer);
   var answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
 
-  var answerStr = JSON.stringify(answer);
-  return answerStr;
+  answerStr = JSON.stringify(answer);
 }
 
 var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);
 var receiveOffer = LINKS.kify(_receiveOffer);
+var checkOffer = LINKS.kify(_checkOffer);
+var checkAnswer = LINKS.kify(_checkAnswer);
