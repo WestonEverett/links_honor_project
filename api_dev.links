@@ -22,6 +22,10 @@ module JSFFI {
 fun displayLocalVid() {
   var vidXML = <video id = "local_vid" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
   appendChildren(vidXML, getNodeById("vids"));
+
+  var vidXML2 = <video id = "remoteVideo" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
+  appendChildren(vidXML2, getNodeById("vids"));
+
   JSFFI.playLocalVideo("local_vid")
 }
 
@@ -156,7 +160,7 @@ fun handleVidMessage(serverPid, msg) {
         print("This is an ICE VidMessage");
         var candidate = JSFFI.toString(msg.data);
         JSFFI.newRemoteCandidate(candidate);
-        ()        
+        ()
     }
   }
 }

@@ -69,7 +69,9 @@ async function _createOffer() {
   var offer = await pc.createOffer(offerOptions)
   await pc.setLocalDescription(offer);
 
-  pc.addEventListener('track', async (event) => {receivedStream(event);});
+  const remoteVideo = document.querySelector('video#remoteVideo');
+  remoteVideo.srcObject = remoteStream;
+  pc.addEventListener('track', async (event) => {remoteStream.addTrack(event.track, remoteStream); console.log("remote track added");});
   pc.addEventListener('icecandidate', event => {if (event.candidate) {iceCandidates.push(event.candidate);}});
   pc.addEventListener('connectionstatechange', event => { console.log(pc.connectionState);});
 
@@ -93,6 +95,11 @@ async function _createAnswer(newOfferStr) {
   await pc.setLocalDescription(answer);
 
   pc.addEventListener('track', async (event) => {receivedStream(event);});
+
+  const remoteVideo = document.querySelector('video#remoteVideo');
+  remoteVideo.srcObject = remoteStream;
+  pc.addEventListener('track', async (event) => {remoteStream.addTrack(event.track, remoteStream); console.log("remote track added");});
+
   pc.addEventListener('icecandidate', event => {if (event.candidate) {iceCandidates.push(event.candidate);}});
   pc.addEventListener('connectionstatechange', event => { console.log(pc.connectionState);});
 
@@ -138,7 +145,7 @@ function receivedStream(event) {
 
 async function attachLocalStreams(){
   localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-  localStream.getTracks().forEach(track => {pc.addTrack(track, localStream)});
+  localStream.getTracks().forEach(track => {pc.addTrack(track, localStream); console.log("track attached");});
 }
 
 function _checkForIceCandidates(){
