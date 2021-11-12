@@ -9,8 +9,13 @@ module JSFFI {
 
     createOffer: () ~> ();
     checkOffer: () ~> (String);
-    receiveOffer: (String) ~> ();
+    createAnswer: (String) ~> ();
     checkAnswer: () ~> (String);
+    createAccept: (String) ~> ();
+    checkAccept: () ~> (String);
+
+    checkForIceCandidates: () ~> (String);
+    newRemoteCandidate: (String) ~> ();
   }
 }
 
@@ -57,6 +62,34 @@ fun waitToFinishAnswer(){
     }
 }
 
+fun waitToFinishAccept(){
+
+  var response = JSFFI.checkAccept();
+
+  if (response <> "wait") {
+    ()
+    }
+    else {
+      waitToFinishAccept()
+    }
+}
+
+fun checkCandidates(serverPid, foreignID) {
+  var candidate = JSFFI.checkForIceCandidates();
+
+  if (candidate <> "None") {
+
+    var localID = JSFFI.getID();
+
+    serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "ice", data = candidate));
+
+    checkCandidates(serverPid, foreignID)
+  }
+  else {
+    checkCandidates(serverPid, foreignID)
+  }
+}
+
 ### CLIENT
 
 ##Message Types:
@@ -88,23 +121,42 @@ fun handleVidMessage(serverPid, msg) {
         var offerStr = waitToFinishOffer();
         print(offerStr);
         serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "offer", data = offerStr));
+
+        var iceClient = spawnClient { checkCandidates(serverPid, foreignID) };
+
         print("I am " ^^ localID ^^ " sending an offer to " ^^ foreignID);
         ()
 
       case "offer" ->
         print("This is an offer VidMessage");
+
         var offerStr = JSFFI.toString(msg.data);
-        JSFFI.receiveOffer(offerStr);
+        JSFFI.createAnswer(offerStr);
 
-        var acceptStr = waitToFinishAnswer();
+        var answerStr = waitToFinishAnswer();
 
-        serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "accept", data = acceptStr));
+        serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "accept", data = answerStr));
+
+        var iceClient = spawnClient { checkCandidates(serverPid, foreignID) };
+
         print("I am " ^^ localID ^^ " sending an accept to " ^^ foreignID);
         ()
 
       case "accept" ->
-        print("accept VidMessage received");
+        print("This is an accept VidMessage");
+        var answerStr = JSFFI.toString(msg.data);
+        JSFFI.createAccept(answerStr);
+
+        waitToFinishAccept();
+
+        print("I am " ^^ localID ^^ " accepting an offer from " ^^ foreignID);
         ()
+
+      case "ice" ->
+        print("This is an ICE VidMessage");
+        var candidate = JSFFI.toString(msg.data);
+        JSFFI.newRemoteCandidate(candidate);
+        ()        
     }
   }
 }
