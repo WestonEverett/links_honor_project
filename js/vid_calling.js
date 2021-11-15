@@ -44,15 +44,11 @@ async function _playLocalVideo(ID) {
   }
 }
 
-let offerStr = "wait";
-let answerStr = "wait";
-let acceptStr = "wait";
 let localStream;
-let remoteStream = new MediaStream();
-const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]};
-let pc;
 
-let iceCandidates = [];
+const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]};
+
+let peerData = {};
 
 
 
@@ -61,106 +57,103 @@ const offerOptions = {
   offerToReceiveVideo: 1
 };
 
-async function _createOffer() {
+async function _createOffer(foreignID) {
 
-  offerStr = "wait";
+  await preparePC(foreignID);
 
-  pc = new RTCPeerConnection(configuration);
-  var offer = await pc.createOffer(offerOptions)
-  await pc.setLocalDescription(offer);
+  var offer = await peerData[foreignID].pc.createOffer(offerOptions)
+  await peerData[foreignID].pc.setLocalDescription(offer);
 
-  const remoteVideo = document.querySelector('video#remoteVideo');
-  remoteVideo.srcObject = remoteStream;
-  pc.addEventListener('track', async (event) => {remoteStream.addTrack(event.track, remoteStream); console.log("remote track added");});
-  pc.addEventListener('icecandidate', event => {if (event.candidate) {iceCandidates.push(event.candidate);}});
-  pc.addEventListener('connectionstatechange', event => { console.log(pc.connectionState);});
-
-  offerStr = JSON.stringify(offer);
+  peerData[foreignID].dataStr = JSON.stringify(offer);
 
 }
 
-function _checkOffer() {
-  return offerStr;
-}
-
-async function _createAnswer(newOfferStr) {
-
-  answerStr = "wait";
-
-  var offer = JSON.parse(newOfferStr);
-
-  pc = new RTCPeerConnection(configuration);
-  await pc.setRemoteDescription(new RTCSessionDescription(offer));
-  var answer = await pc.createAnswer();
-  await pc.setLocalDescription(answer);
-
-  pc.addEventListener('track', async (event) => {receivedStream(event);});
-
-  const remoteVideo = document.querySelector('video#remoteVideo');
-  remoteVideo.srcObject = remoteStream;
-  pc.addEventListener('track', async (event) => {remoteStream.addTrack(event.track, remoteStream); console.log("remote track added");});
-
-  pc.addEventListener('icecandidate', event => {if (event.candidate) {iceCandidates.push(event.candidate);}});
-  pc.addEventListener('connectionstatechange', event => { console.log(pc.connectionState);});
-
-  await attachLocalStreams();
-
-  answerStr = JSON.stringify(answer);
-}
-
-function _checkAnswer() {
-  return answerStr;
-}
-
-async function _createAccept(newOfferStr) {
-
-  acceptStr = "wait";
-
-  var offer = JSON.parse(newOfferStr);
-
-  await pc.setRemoteDescription(new RTCSessionDescription(offer));
-
-  await attachLocalStreams();
-
-  acceptStr = '';
-}
-
-function _checkAccept() {
-  return acceptStr;
-}
-
-function receivedStream(event) {
-  console.log("received Stream")
+async function preparePC(foreignID){
+  peerData[foreignID] = {pc:"none", iceCandidates:[], dataStr:"wait", remoteStream: new MediaStream()}
 
   var newVid = document.createElement('video');
   newVid.setAttribute('autoplay', 'true');
   newVid.setAttribute('object-fit', 'cover');
   newVid.setAttribute('width', '320px');
   newVid.setAttribute('height', '240px');
+  newVid.setAttribute('id', foreignID);
 
-  newVid.srcObject = event.streams[0];
+  newVid.srcObject = peerData[foreignID].remoteStream;
 
   document.getElementById('vids').appendChild(newVid);
+
+  peerData[foreignID].pc = new RTCPeerConnection(configuration);
+
+  peerData[foreignID].pc.ontrack = async (event) => {
+    peerData[foreignID].remoteStream.addTrack(event.track, peerData[foreignID].remoteStream);
+    console.log("remote track added");
+  }
+
+  peerData[foreignID].pc.addEventListener('icecandidate', event => {
+    if (event.candidate) {peerData[foreignID].iceCandidates.push(event.candidate);}
+  });
+
+  peerData[foreignID].pc.addEventListener('connectionstatechange', event => {
+    console.log(peerData[foreignID].pc.connectionState);
+    if(peerData[foreignID].pc.connectionState == "disconnected"){
+      hangup(foreignID);
+    }
+  });
+
+  const localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+  localStream.getTracks().forEach((track) => {peerData[foreignID].pc.addTrack(track, localStream); console.log("track attached");});
 }
 
-async function attachLocalStreams(){
-  localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-  localStream.getTracks().forEach(track => {pc.addTrack(track, localStream); console.log("track attached");});
+function _checkAsyncDone(foreignID) {
+  return peerData[foreignID].dataStr;
 }
 
-function _checkForIceCandidates(){
-  if(iceCandidates.length == 0){
+function hangup(foreignID){
+
+  var remoteVideo = document.getElementById(foreignID);
+  remoteVideo.parentNode.removeChild(remoteVideo);
+
+  peerData[foreignID].pc.close();
+}
+
+async function _createAnswer(foreignID, newOfferStr) {
+
+
+  var offer = JSON.parse(newOfferStr);
+
+  await preparePC(foreignID);
+
+  await peerData[foreignID].pc.setRemoteDescription(new RTCSessionDescription(offer));
+  var answer = await peerData[foreignID].pc.createAnswer();
+  await peerData[foreignID].pc.setLocalDescription(answer);
+
+  peerData[foreignID].dataStr = JSON.stringify(answer);
+}
+
+async function _createAccept(foreignID, newOfferStr) {
+
+  peerData[foreignID].dataStr = "wait";
+
+  var offer = JSON.parse(newOfferStr);
+
+  await peerData[foreignID].pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+  peerData[foreignID].dataStr = '';
+}
+
+function _checkForIceCandidates(foreignID){
+  if(peerData[foreignID].iceCandidates.length == 0){
     return "None";
   }
   else{
-    return JSON.stringify(iceCandidates.shift());
+    return JSON.stringify(peerData[foreignID].iceCandidates.shift());
   }
 }
 
-async function _newRemoteCandidate(iceCandidate){
+async function _newRemoteCandidate(foreignID, iceCandidate){
   try {
     var cand = JSON.parse(iceCandidate)
-    await pc.addIceCandidate(cand);
+    await peerData[foreignID].pc.addIceCandidate(cand);
   } catch (e) {
     console.error('Error adding received ice candidate', e);
   }
@@ -168,11 +161,10 @@ async function _newRemoteCandidate(iceCandidate){
 
 var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);
-var checkOffer = LINKS.kify(_checkOffer);
 var createAnswer = LINKS.kify(_createAnswer);
-var checkAnswer = LINKS.kify(_checkAnswer);
 var createAccept = LINKS.kify(_createAccept);
-var checkAccept = LINKS.kify(_checkAccept);
+
+var checkAsyncDone = LINKS.kify(_checkAsyncDone);
 
 var checkForIceCandidates = LINKS.kify(_checkForIceCandidates);
 var newRemoteCandidate = LINKS.kify(_newRemoteCandidate);

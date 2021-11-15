@@ -7,24 +7,19 @@ module JSFFI {
     getID: () ~> (String);
     setID: () ~> ();
 
-    createOffer: () ~> ();
-    checkOffer: () ~> (String);
-    createAnswer: (String) ~> ();
-    checkAnswer: () ~> (String);
-    createAccept: (String) ~> ();
-    checkAccept: () ~> (String);
+    createOffer: (String) ~> ();
+    createAnswer: (String, String) ~> ();
+    createAccept: (String, String) ~> ();
+    checkAsyncDone: (String) ~> (String);
 
-    checkForIceCandidates: () ~> (String);
-    newRemoteCandidate: (String) ~> ();
+    checkForIceCandidates: (String) ~> (String);
+    newRemoteCandidate: (String, String) ~> ();
   }
 }
 
 fun displayLocalVid() {
   var vidXML = <video id = "local_vid" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
   appendChildren(vidXML, getNodeById("vids"));
-
-  var vidXML2 = <video id = "remoteVideo" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
-  appendChildren(vidXML2, getNodeById("vids"));
 
   JSFFI.playLocalVideo("local_vid")
 }
@@ -42,44 +37,21 @@ fun attemptCall(msg){
 
 }
 
-fun waitToFinishOffer(){
+fun waitForAsync(foreignID){
 
-  var response = JSFFI.checkOffer();
-
-  if (response <> "wait") {
-    response
-    }
-    else {
-      waitToFinishOffer()
-    }
-}
-
-fun waitToFinishAnswer(){
-
-  var response = JSFFI.checkAnswer();
+  var response = JSFFI.checkAsyncDone(foreignID);
 
   if (response <> "wait") {
     response
     }
     else {
-      waitToFinishAnswer()
+      waitForAsync(foreignID)
     }
 }
 
-fun waitToFinishAccept(){
-
-  var response = JSFFI.checkAccept();
-
-  if (response <> "wait") {
-    ()
-    }
-    else {
-      waitToFinishAccept()
-    }
-}
 
 fun checkCandidates(serverPid, foreignID) {
-  var candidate = JSFFI.checkForIceCandidates();
+  var candidate = JSFFI.checkForIceCandidates(foreignID);
 
   if (candidate <> "None") {
 
@@ -121,8 +93,8 @@ fun handleVidMessage(serverPid, msg) {
     switch(type) {
       case "initial" ->
         print("This is an initial VidMessage");
-        JSFFI.createOffer();
-        var offerStr = waitToFinishOffer();
+        JSFFI.createOffer(foreignID);
+        var offerStr = waitForAsync(foreignID);
         print(offerStr);
         serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "offer", data = offerStr));
 
@@ -135,9 +107,9 @@ fun handleVidMessage(serverPid, msg) {
         print("This is an offer VidMessage");
 
         var offerStr = JSFFI.toString(msg.data);
-        JSFFI.createAnswer(offerStr);
+        JSFFI.createAnswer(foreignID,offerStr);
 
-        var answerStr = waitToFinishAnswer();
+        var answerStr = waitForAsync(foreignID);
 
         serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "accept", data = answerStr));
 
@@ -149,9 +121,9 @@ fun handleVidMessage(serverPid, msg) {
       case "accept" ->
         print("This is an accept VidMessage");
         var answerStr = JSFFI.toString(msg.data);
-        JSFFI.createAccept(answerStr);
+        JSFFI.createAccept(foreignID,answerStr);
 
-        waitToFinishAccept();
+        var _ = waitForAsync(foreignID);
 
         print("I am " ^^ localID ^^ " accepting an offer from " ^^ foreignID);
         ()
@@ -159,7 +131,7 @@ fun handleVidMessage(serverPid, msg) {
       case "ice" ->
         print("This is an ICE VidMessage");
         var candidate = JSFFI.toString(msg.data);
-        JSFFI.newRemoteCandidate(candidate);
+        JSFFI.newRemoteCandidate(foreignID,candidate);
         ()
     }
   }
