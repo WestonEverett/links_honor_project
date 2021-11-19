@@ -33,10 +33,6 @@ fun getSelfInfo() {
 
 ##WebRTC Functions
 
-fun attemptCall(msg){
-
-}
-
 fun waitForAsync(foreignID){
 
   var response = JSFFI.checkAsyncDone(foreignID);
@@ -137,6 +133,58 @@ fun handleVidMessage(serverPid, msg) {
   }
 }
 
+fun addToRoom(clientID, clientName, roomNum){
+
+  print(roomNum);
+
+  if (roomNum == "0"){
+    print("roomNum found to be 0");
+    ()
+  }
+  else {
+    #var xmlid = "NameOf" ^^ clientID;
+
+    var nameXML = <div><body>{stringToXml(clientName)}</body></div>;
+    appendChildren(nameXML, getNodeById(roomNum));
+
+    ()
+  }
+}
+
+
+##StateUpdate((clientInfo(clientID, clientName, room)[]))
+
+fun handleStateUpdate(clientArr) {
+#  switch (clientArr) {
+#    case [] ->
+#    print("out of clients");
+#    ()
+#    case c::clientArr ->
+#      print("client in clientArr");
+#
+#      var id = JSFFI.toString(c.clientID);
+#      var name = JSFFI.toString(c.clientName);
+#      var roomNum = JSFFI.toString(c.room);
+#      print(id ^^ name ^^ roomNum);
+#
+#      addToRoom(id, name, roomNum);
+#      handleStateUpdate(clientArr)
+#  }
+
+  var _ = for (c <- clientArr) {
+    print("client in clientArr");
+
+    var id = JSFFI.toString(c.clientID);
+    var name = JSFFI.toString(c.clientName);
+    var roomNum = JSFFI.toString(c.room);
+    print(id ^^ name ^^ roomNum);
+
+    addToRoom(id, name, roomNum);
+    []
+  };
+  ()
+}
+
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
 fun clientLoop(serverPid) {
@@ -167,6 +215,11 @@ fun clientLoop(serverPid) {
           print("VidMessage Received from " ^^ JSFFI.toString(msg.senderID));
           handleVidMessage(serverPid, msg);
           clientLoop(serverPid)
+
+        case StateUpdate(msg) ->
+          print("StateUpdate Received");
+          handleStateUpdate(msg);
+          clientLoop(serverPid)
     }
 
 }
@@ -183,7 +236,7 @@ fun clientRegister(serverPid) {
     var id = JSFFI.getID();
     displayLocalVid();
 
-    var clientInfo = (clientID = id, clientName = name);
+    var clientInfo = (clientID = id, clientName = name, room = "0");
 
     serverPid ! Register(self(), clientInfo);
 
@@ -200,8 +253,18 @@ fun mainPage(serverPid) {
   page
   <html>
     <body>
+    <div id = "1">
+      <form l:onsubmit="{serverPid ! ChangeRoom(JSFFI.getID(), "1")}">
+        <button type="submit">Room 1</button>
+      </form>
+    </div>
+     <div id = "2">
+      <form l:onsubmit="{serverPid ! ChangeRoom(JSFFI.getID(), "2")}">
+        <button type="submit">Room 2</button>
+      </form>
+    </div>
     <div id = "vids"></div>
-    <div id = "users"></div>
+
     </body>
   </html>
 
@@ -225,15 +288,38 @@ fun serverLoop(clients) server {
             var newClients = (pid, clientInfo) :: clients;
             # Broadcast a "New Client" message
             broadcast(newClients, NewClient(clientInfo));
+
+            var infoToSend = for ((_ , clientInfo) <- newClients){
+              [clientInfo]
+            };
+
+            broadcast(newClients, StateUpdate(infoToSend));
+
             serverLoop(newClients)
 
-        case Send(targets, msg) ->
-          broadcast(targets, msg);
-          serverLoop(clients)
+        #case Send(targetID, msg) ->
+
+        #  var target = for (client <- clients) where (JSFFI.toString((client.2).clientID) == targetID) [client];
+
+        #  broadcast(target, msg);
+        #  serverLoop(clients)
 
         case Broadcast(msg) ->
           broadcast(clients, msg);
           serverLoop(clients)
+
+        case ChangeRoom(userID, newRoom) ->
+          var newClients = for ((pid , clientInfo) <- clients)
+            if (JSFFI.toString(clientInfo.clientID) == userID)
+              [(pid, (clientID = JSFFI.toString(clientInfo.clientID), clientName = JSFFI.toString(clientInfo.clientName), room = newRoom))]
+            else
+              [(pid, clientInfo)];
+
+          var infoToSend = for ((_ , clientInfo) <- newClients) [clientInfo];
+
+          broadcast(newClients, StateUpdate(infoToSend));
+
+          serverLoop(newClients)
 
     }
 }

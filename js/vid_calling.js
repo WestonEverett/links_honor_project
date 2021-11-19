@@ -76,7 +76,7 @@ async function preparePC(foreignID){
   newVid.setAttribute('object-fit', 'cover');
   newVid.setAttribute('width', '320px');
   newVid.setAttribute('height', '240px');
-  newVid.setAttribute('id', foreignID);
+  newVid.setAttribute('id', 'VidOf' + foreignID);
 
   newVid.srcObject = peerData[foreignID].remoteStream;
 
@@ -110,7 +110,7 @@ function _checkAsyncDone(foreignID) {
 
 function hangup(foreignID){
 
-  var remoteVideo = document.getElementById(foreignID);
+  var remoteVideo = document.getElementById('VidOf' + foreignID);
   remoteVideo.parentNode.removeChild(remoteVideo);
 
   peerData[foreignID].pc.close();
