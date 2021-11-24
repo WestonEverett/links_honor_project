@@ -135,16 +135,29 @@ fun handleVidMessage(serverPid, msg) {
 
 fun addToRoom(clientID, clientName, roomNum){
 
-  print(roomNum);
+  print("placing " ^^ clientName ^^ " with id " ^^ clientID ^^ " in room " ^^ roomNum);
+  var xmlid = "NameOf" ^^ clientID;
 
   if (roomNum == "0"){
     print("roomNum found to be 0");
-    ()
+    var node = getNodeById(xmlid);
+
+    if(not(isNull(node))) {
+      removeNode(node)
+    } else {
+      ()
+    }
+
   }
   else {
-    #var xmlid = "NameOf" ^^ clientID;
+    var node = getNodeById(xmlid);
+    if(not(isNull(node))){
+      removeNode(node)
+    } else {
+    ()
+    };
 
-    var nameXML = <div><body>{stringToXml(clientName)}</body></div>;
+    var nameXML = <div id = "{xmlid}"><body>{stringToXml(clientName)}</body></div>;
     appendChildren(nameXML, getNodeById(roomNum));
 
     ()
@@ -172,12 +185,10 @@ fun handleStateUpdate(clientArr) {
 #  }
 
   var _ = for (c <- clientArr) {
-    print("client in clientArr");
 
     var id = JSFFI.toString(c.clientID);
     var name = JSFFI.toString(c.clientName);
     var roomNum = JSFFI.toString(c.room);
-    print(id ^^ name ^^ roomNum);
 
     addToRoom(id, name, roomNum);
     []
@@ -220,6 +231,11 @@ fun clientLoop(serverPid) {
           print("StateUpdate Received");
           handleStateUpdate(msg);
           clientLoop(serverPid)
+
+        case Migrate(msg) ->
+          print("Migrate Received");
+          serverPid ! ChangeRoom(JSFFI.getID(), msg);
+          clientLoop(serverPid)
     }
 
 }
@@ -254,12 +270,12 @@ fun mainPage(serverPid) {
   <html>
     <body>
     <div id = "1">
-      <form l:onsubmit="{serverPid ! ChangeRoom(JSFFI.getID(), "1")}">
+      <form l:onsubmit="{clientPid ! Migrate("1")}">
         <button type="submit">Room 1</button>
       </form>
     </div>
      <div id = "2">
-      <form l:onsubmit="{serverPid ! ChangeRoom(JSFFI.getID(), "2")}">
+      <form l:onsubmit="{clientPid ! Migrate("2")}">
         <button type="submit">Room 2</button>
       </form>
     </div>
@@ -299,7 +315,7 @@ fun serverLoop(clients) server {
 
         #case Send(targetID, msg) ->
 
-        #  var target = for (client <- clients) where (JSFFI.toString((client.2).clientID) == targetID) [client];
+        #  var target = for (client <- clients) where ((client.2).clientID) == targetID) [client];
 
         #  broadcast(target, msg);
         #  serverLoop(clients)
@@ -310,8 +326,14 @@ fun serverLoop(clients) server {
 
         case ChangeRoom(userID, newRoom) ->
           var newClients = for ((pid , clientInfo) <- clients)
-            if (JSFFI.toString(clientInfo.clientID) == userID)
-              [(pid, (clientID = JSFFI.toString(clientInfo.clientID), clientName = JSFFI.toString(clientInfo.clientName), room = newRoom))]
+            if (clientInfo.clientID == userID) {
+              var id = clientInfo.clientID;
+              var name = clientInfo.clientName;
+              var newClientInfo = (clientID = id, clientName = name, room = newRoom);
+
+              [(pid, newClientInfo)]
+            }
+
             else
               [(pid, clientInfo)];
 

@@ -10,7 +10,7 @@ function _getLocalName(){
 }
 
 function _toStr(object) {
-  return object._value;
+  return object;
 }
 
 function _setID() {
