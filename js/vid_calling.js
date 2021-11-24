@@ -69,7 +69,7 @@ async function _createOffer(foreignID) {
 }
 
 async function preparePC(foreignID){
-  peerData[foreignID] = {pc:"none", iceCandidates:[], dataStr:"wait", remoteStream: new MediaStream()}
+  peerData[foreignID] = {pc:"none", foreignID:foreignID, iceCandidates:[], dataStr:"wait", remoteStream: new MediaStream()}
 
   var newVid = document.createElement('video');
   newVid.setAttribute('autoplay', 'true');
@@ -96,7 +96,7 @@ async function preparePC(foreignID){
   peerData[foreignID].pc.addEventListener('connectionstatechange', event => {
     console.log(peerData[foreignID].pc.connectionState);
     if(peerData[foreignID].pc.connectionState == "disconnected"){
-      hangup(foreignID);
+      _hangup(foreignID);
     }
   });
 
@@ -108,12 +108,23 @@ function _checkAsyncDone(foreignID) {
   return peerData[foreignID].dataStr;
 }
 
-function hangup(foreignID){
+function _hangupAll(){
+  for (peer in peerData) {
+    _hangup(peer);
+  }
+}
+
+function _hangup(foreignID){
 
   var remoteVideo = document.getElementById('VidOf' + foreignID);
-  remoteVideo.parentNode.removeChild(remoteVideo);
 
-  peerData[foreignID].pc.close();
+  if(remoteVideo != null){
+    remoteVideo.parentNode.removeChild(remoteVideo);
+    peerData[foreignID].pc.close();
+  }
+  else {
+    console.log("can't find vid of " + foreignID);
+  }
 }
 
 async function _createAnswer(foreignID, newOfferStr) {
@@ -163,6 +174,8 @@ var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);
 var createAnswer = LINKS.kify(_createAnswer);
 var createAccept = LINKS.kify(_createAccept);
+var hangup = LINKS.kify(_hangup);
+var hangupAll = LINKS.kify(_hangupAll);
 
 var checkAsyncDone = LINKS.kify(_checkAsyncDone);
 

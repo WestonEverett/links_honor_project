@@ -11,6 +11,8 @@ module JSFFI {
     createAnswer: (String, String) ~> ();
     createAccept: (String, String) ~> ();
     checkAsyncDone: (String) ~> (String);
+    hangup: (String) ~> ();
+    hangupAll: () ~> ();
 
     checkForIceCandidates: (String) ~> (String);
     newRemoteCandidate: (String, String) ~> ();
@@ -133,7 +135,12 @@ fun handleVidMessage(serverPid, msg) {
   }
 }
 
-fun addToRoom(clientID, clientName, roomNum){
+##changedInfo = clientInfo record
+fun moveToRoom(changedInfo){
+
+  var clientID = changedInfo.clientID;
+  var clientName = changedInfo.clientName;
+  var roomNum = changedInfo.room;
 
   print("placing " ^^ clientName ^^ " with id " ^^ clientID ^^ " in room " ^^ roomNum);
   var xmlid = "NameOf" ^^ clientID;
@@ -165,32 +172,42 @@ fun addToRoom(clientID, clientName, roomNum){
 }
 
 
-##StateUpdate((clientInfo(clientID, clientName, room)[]))
+##StateUpdate((clientInfo(clientID, clientName, room)))
 
-fun handleStateUpdate(clientArr) {
-#  switch (clientArr) {
-#    case [] ->
-#    print("out of clients");
-#    ()
-#    case c::clientArr ->
-#      print("client in clientArr");
-#
-#      var id = JSFFI.toString(c.clientID);
-#      var name = JSFFI.toString(c.clientName);
-#      var roomNum = JSFFI.toString(c.room);
-#      print(id ^^ name ^^ roomNum);
-#
-#      addToRoom(id, name, roomNum);
-#      handleStateUpdate(clientArr)
-#  }
+fun handleStateUpdate(serverPid, oldOthersInfo, myInfo, changedInfo) {
+
+  var newOthersInfo = for (c <- oldOthersInfo) {
+    if (c.clientID == changedInfo.clientID) {
+
+      if(and([c.room == myInfo.room, myInfo.room <> "0"])){
+        JSFFI.hangup(c.clientID);
+        print("Hanging up with " ^^ c.clientID)
+      }
+      else {
+      ()
+      };
+
+      if(and([changedInfo.room == myInfo.room, myInfo.room <> "0"])) {
+        serverPid ! Broadcast(VidMessage(senderID = myInfo.clientID, destID = changedInfo.clientID, msgType = "initial", data = ""));
+        print("Sending Init VidMessage to " ^^ changedInfo.clientID)
+      } else {};
+
+      moveToRoom(changedInfo);
+
+      [changedInfo]
+    }
+    else {
+      [c]
+    }
+  };
+  newOthersInfo
+}
+
+##InitialState([clientInfo(clientID, clientName, room)])
+fun handleInitialState(clientArr) {
 
   var _ = for (c <- clientArr) {
-
-    var id = JSFFI.toString(c.clientID);
-    var name = JSFFI.toString(c.clientName);
-    var roomNum = JSFFI.toString(c.room);
-
-    addToRoom(id, name, roomNum);
+    moveToRoom(c);
     []
   };
   ()
@@ -198,44 +215,48 @@ fun handleStateUpdate(clientArr) {
 
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
-fun clientLoop(serverPid) {
+fun clientLoop(serverPid, othersInfo, myInfo) {
     receive {
         case NewClient(msg) ->
-
-            var localID = JSFFI.getID();
-
-            print("New client registered " ^^ localID);
-
-            var foreignID = JSFFI.toString(msg.clientID);
-
-
-            if(localID <> foreignID) {
-              serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "initial", data = ""));
-              print("New User!");
-              print(localID ^^ "," ^^ foreignID);
-              clientLoop(serverPid)
-            }
-            else {
-              print("My own register");
-              print(localID ^^ "," ^^ foreignID);
-              clientLoop(serverPid)
-            }
+          print("New client registered " ^^ msg.clientID);
+          var othersNewInfo = msg :: othersInfo;
+          clientLoop(serverPid, othersNewInfo, myInfo)
 
 
         case VidMessage(msg) ->
           print("VidMessage Received from " ^^ JSFFI.toString(msg.senderID));
           handleVidMessage(serverPid, msg);
-          clientLoop(serverPid)
+          clientLoop(serverPid, othersInfo, myInfo)
 
         case StateUpdate(msg) ->
           print("StateUpdate Received");
-          handleStateUpdate(msg);
-          clientLoop(serverPid)
+          var othersNewInfo = handleStateUpdate(serverPid, othersInfo, myInfo, msg);
+          clientLoop(serverPid, othersNewInfo, myInfo)
+
+        case InitialState(msg) ->
+          print("InitialState received");
+          handleInitialState(msg);
+          clientLoop(serverPid, msg, myInfo)
 
         case Migrate(msg) ->
           print("Migrate Received");
-          serverPid ! ChangeRoom(JSFFI.getID(), msg);
-          clientLoop(serverPid)
+
+          if(myInfo.room <> msg) {
+
+            if(myInfo.room <> "0"){ JSFFI.hangupAll()} else {};
+
+            serverPid ! ChangeRoom(JSFFI.getID(), msg);
+            var myNewInfo = (clientID = myInfo.clientID, clientName = myInfo.clientName, room = msg);
+            moveToRoom(myNewInfo);
+            clientLoop(serverPid, othersInfo, myNewInfo)
+          } else {
+            clientLoop(serverPid, othersInfo, myInfo)
+          }
+
+
+
+
+
     }
 
 }
@@ -256,7 +277,7 @@ fun clientRegister(serverPid) {
 
     serverPid ! Register(self(), clientInfo);
 
-    clientLoop(serverPid)
+    clientLoop(serverPid, [], clientInfo)
 }
 
 ## Run on the server to generate a page for the client. Spawns a process on the
@@ -302,29 +323,36 @@ fun serverLoop(clients) server {
     receive {
         case Register(pid, clientInfo) ->
             var newClients = (pid, clientInfo) :: clients;
-            # Broadcast a "New Client" message
-            broadcast(newClients, NewClient(clientInfo));
+
+            # Broadcast a "NewClient" message
+            broadcast(clients, NewClient(clientInfo));
 
             var infoToSend = for ((_ , clientInfo) <- newClients){
               [clientInfo]
             };
 
-            broadcast(newClients, StateUpdate(infoToSend));
+            broadcast([(pid, clientInfo)], InitialState(infoToSend));
 
             serverLoop(newClients)
 
-        #case Send(targetID, msg) ->
+        case Send(targetID, msg) ->
 
-        #  var target = for (client <- clients) where ((client.2).clientID) == targetID) [client];
+          var target = for ((pid , clientInfo) <- clients)
+            if (clientInfo.clientID == targetID) {
+              [(pid , clientInfo)]
+            } else {
+              []
+            };
 
-        #  broadcast(target, msg);
-        #  serverLoop(clients)
+            broadcast(target, msg);
+            serverLoop(clients)
 
         case Broadcast(msg) ->
           broadcast(clients, msg);
           serverLoop(clients)
 
         case ChangeRoom(userID, newRoom) ->
+
           var newClients = for ((pid , clientInfo) <- clients)
             if (clientInfo.clientID == userID) {
               var id = clientInfo.clientID;
@@ -337,9 +365,23 @@ fun serverLoop(clients) server {
             else
               [(pid, clientInfo)];
 
-          var infoToSend = for ((_ , clientInfo) <- newClients) [clientInfo];
+          var clientsToUpdate = for ((pid , clientInfo) <- newClients)
+            if (clientInfo.clientID <> userID) {
+              [(pid , clientInfo)]
+            }
+            else
+              [];
 
-          broadcast(newClients, StateUpdate(infoToSend));
+          var clientInfoToSend = for ((pid , clientInfo) <- newClients)
+            if (clientInfo.clientID == userID) {
+              [clientInfo]
+            }
+            else
+              [];
+
+          var infoToSend = hd(clientInfoToSend);
+
+          broadcast(clientsToUpdate, StateUpdate(infoToSend));
 
           serverLoop(newClients)
 
