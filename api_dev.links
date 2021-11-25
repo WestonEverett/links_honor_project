@@ -55,7 +55,7 @@ fun checkCandidates(serverPid, foreignID) {
 
     var localID = JSFFI.getID();
 
-    serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "ice", data = candidate));
+    serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "ice", data = candidate));
 
     checkCandidates(serverPid, foreignID)
   }
@@ -94,7 +94,7 @@ fun handleVidMessage(serverPid, msg) {
         JSFFI.createOffer(foreignID);
         var offerStr = waitForAsync(foreignID);
         print(offerStr);
-        serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "offer", data = offerStr));
+        serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "offer", data = offerStr));
 
         var iceClient = spawnClient { checkCandidates(serverPid, foreignID) };
 
@@ -109,7 +109,7 @@ fun handleVidMessage(serverPid, msg) {
 
         var answerStr = waitForAsync(foreignID);
 
-        serverPid ! Broadcast(VidMessage(senderID = localID, destID = foreignID, msgType = "accept", data = answerStr));
+        serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "accept", data = answerStr));
 
         var iceClient = spawnClient { checkCandidates(serverPid, foreignID) };
 
@@ -188,7 +188,7 @@ fun handleStateUpdate(serverPid, oldOthersInfo, myInfo, changedInfo) {
       };
 
       if(and([changedInfo.room == myInfo.room, myInfo.room <> "0"])) {
-        serverPid ! Broadcast(VidMessage(senderID = myInfo.clientID, destID = changedInfo.clientID, msgType = "initial", data = ""));
+        serverPid ! Send(changedInfo.clientID, VidMessage(senderID = myInfo.clientID, destID = changedInfo.clientID, msgType = "initial", data = ""));
         print("Sending Init VidMessage to " ^^ changedInfo.clientID)
       } else {};
 
