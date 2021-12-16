@@ -143,32 +143,32 @@ fun moveToRoom(changedInfo){
   var roomNum = changedInfo.room;
 
   print("placing " ^^ clientName ^^ " with id " ^^ clientID ^^ " in room " ^^ roomNum);
-  var xmlid = "NameOf" ^^ clientID;
+  var divID = "DivOf" ^^ clientID;
+  var checkID = "CheckOf" ^^ clientID;
 
-  if (roomNum == "0"){
-    print("roomNum found to be 0");
-    var node = getNodeById(xmlid);
+  var node = getNodeById(divID);
 
-    if(not(isNull(node))) {
-      removeNode(node)
-    } else {
-      ()
-    }
+  if(not(isNull(node))){
+    var tempXML = <div id="tempNodeID"></div>;
+    appendChildren(tempXML, getNodeById(roomNum));
 
-  }
-  else {
-    var node = getNodeById(xmlid);
-    if(not(isNull(node))){
-      removeNode(node)
-    } else {
-    ()
-    };
+    var tempNode = getNodeById("tempNodeID");
 
-    var nameXML = <div id = "{xmlid}"><body>{stringToXml(clientName)}</body></div>;
-    appendChildren(nameXML, getNodeById(roomNum));
+    swapNodes(node, tempNode);
 
-    ()
-  }
+    removeNode(tempNode)
+  } else {
+    var nameXML =
+      <div id = "{divID}">
+        <input type="checkbox" id="{checkID}" name="{checkID}" value="{clientID}"></input>
+        <label for="{checkID}">{stringToXml(clientName)}</label>
+      </div>;
+
+    appendChildren(nameXML, getNodeById(roomNum))
+  };
+
+
+  ()
 }
 
 
@@ -213,6 +213,31 @@ fun handleInitialState(clientArr) {
   ()
 }
 
+fun getAllCheckedIDs(){
+
+  var roomTopNode = getNodeById("rooms");
+
+  var allRoomNodes = domGetChildrenFromRef(roomTopNode);
+
+  var allNodes = for(roomTopNode <- allRoomNodes) domGetChildrenFromRef(roomTopNode);
+
+  for (cNode <- allNodes) {
+    var tagName = domGetTagNameFromRef(cNode);
+
+    if(domGetTagNameFromRef(cNode) == "DIV") {
+      var inputBox = nextSibling(firstChild(cNode));
+
+      if(domGetPropertyFromRef(inputBox, "checked") == "true"){
+        [domGetAttributeFromRef(inputBox, "value")]
+      } else {
+        []
+      }
+    } else {
+      []
+    }
+  }
+}
+
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
 fun clientLoop(serverPid, othersInfo, myInfo) {
@@ -238,27 +263,32 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           handleInitialState(msg);
           clientLoop(serverPid, msg, myInfo)
 
-        case Migrate(msg) ->
+        case Migrate(event) ->
           print("Migrate Received");
 
-          if(myInfo.room <> msg) {
+          var curNode = getTarget(event);
+          var curDiv = parentNode(curNode);
+          var toRoom = domGetAttributeFromRef(curDiv, "id");
 
-            if(myInfo.room <> "0"){ JSFFI.hangupAll()} else {};
+          var idList = getAllCheckedIDs();
 
-            serverPid ! ChangeRoom(JSFFI.getID(), msg);
-            var myNewInfo = (clientID = myInfo.clientID, clientName = myInfo.clientName, room = msg);
+          var temp = for (id <- idList) {
+            print(id);
+            [id]
+          };
+
+          if(myInfo.room <> toRoom) {
+
+            JSFFI.hangupAll();
+
+            serverPid ! ChangeRoom(JSFFI.getID(), toRoom);
+            var myNewInfo = (clientID = myInfo.clientID, clientName = myInfo.clientName, room = toRoom);
             moveToRoom(myNewInfo);
             clientLoop(serverPid, othersInfo, myNewInfo)
           } else {
             clientLoop(serverPid, othersInfo, myInfo)
           }
-
-
-
-
-
     }
-
 }
 
 ## Run on the client whenever the page has loaded.
@@ -289,20 +319,25 @@ fun mainPage(serverPid) {
 
   page
   <html>
-    <body>
-    <div id = "1">
-      <form l:onsubmit="{clientPid ! Migrate("1")}">
-        <button type="submit">Room 1</button>
-      </form>
-    </div>
-     <div id = "2">
-      <form l:onsubmit="{clientPid ! Migrate("2")}">
-        <button type="submit">Room 2</button>
-      </form>
+    <div id = "rooms">
+      <div id = "0">
+        <form l:onsubmit="{clientPid ! Migrate(event)}">
+          <button type="submit">Quiet Room</button>
+        </form>
+      </div>
+      <div id = "1">
+        <form l:onsubmit="{clientPid ! Migrate(event)}">
+          <button type="submit">Room 1</button>
+        </form>
+      </div>
+      <div id = "2">
+        <form l:onsubmit="{clientPid ! Migrate(event)}">
+          <button type="submit">Room 2</button>
+        </form>
+      </div>
     </div>
     <div id = "vids"></div>
 
-    </body>
   </html>
 
 }
@@ -364,6 +399,7 @@ fun serverLoop(clients) server {
 
             else
               [(pid, clientInfo)];
+
 
           var clientsToUpdate = for ((pid , clientInfo) <- newClients)
             if (clientInfo.clientID <> userID) {
