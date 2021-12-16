@@ -2,6 +2,7 @@ module JSFFI {
   alien javascript "/js/vid_calling.js" {
     playLocalVideo : (String) ~> ();
     setName : () ~> ();
+    askForYesNo : (String) ~> (String); #Possible bug, JSFFI issue returning Bool (doesn't recognize)
     getLocalName : () ~> (String);
     toString : (String) ~> (String);
     getID: () ~> (String);
@@ -264,7 +265,7 @@ fun handleMigrate(serverPid, myInfo, event) {
 
       [changeToRoom(myInfo, toRoom, serverPid)]
     } else {
-      serverPid ! Send(id, RequestRoomChange(senderID = myInfo.clientID, room = toRoom));
+      serverPid ! Send(id, RequestRoomChange(senderID = myInfo.clientID, senderName = myInfo.clientName, room = toRoom));
       []
     }
   };
@@ -305,8 +306,14 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
 
         case RequestRoomChange(msg) ->
           print("Request Received from " ^^ msg.senderID ^^ " for room " ^^ msg.room);
-          var myNewInfo = changeToRoom(myInfo, msg.room, serverPid);
-          clientLoop(serverPid, othersInfo, myNewInfo)
+          if(JSFFI.askForYesNo(msg.senderName ^^ " wants you to join room " ^^ msg.room) == "true"){
+            var myNewInfo = changeToRoom(myInfo, msg.room, serverPid);
+            clientLoop(serverPid, othersInfo, myNewInfo)
+          } else {
+            clientLoop(serverPid, othersInfo, myInfo)
+          }
+
+
 
         case Migrate(event) ->
           print("Migrate Received");
@@ -392,6 +399,8 @@ fun serverLoop(clients) server {
             };
 
             broadcast([(pid, clientInfo)], InitialState(infoToSend));
+
+            broadcast(clients, StateUpdate(clientInfo));
 
             serverLoop(newClients)
 
