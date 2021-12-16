@@ -79,30 +79,30 @@ fun handleVidMessage(serverPid, msg) {
 
   var type = JSFFI.toString(msg.msgType);
 
-  print("I am " ^^ localID ^^ " this is for " ^^ destID ^^ " from " ^^ foreignID);
+  #print("I am " ^^ localID ^^ " this is for " ^^ destID ^^ " from " ^^ foreignID);
 
   if(localID <> destID) {
     print("I don't think this is for me")
   }
   else {
 
-    print("I think this is for me");
+    #print("I think this is for me");
 
     switch(type) {
       case "initial" ->
-        print("This is an initial VidMessage");
+        #print("This is an initial VidMessage");
         JSFFI.createOffer(foreignID);
         var offerStr = waitForAsync(foreignID);
-        print(offerStr);
+        #print(offerStr);
         serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "offer", data = offerStr));
 
         var iceClient = spawnClient { checkCandidates(serverPid, foreignID) };
 
-        print("I am " ^^ localID ^^ " sending an offer to " ^^ foreignID);
+        #print("I am " ^^ localID ^^ " sending an offer to " ^^ foreignID);
         ()
 
       case "offer" ->
-        print("This is an offer VidMessage");
+        #print("This is an offer VidMessage");
 
         var offerStr = JSFFI.toString(msg.data);
         JSFFI.createAnswer(foreignID,offerStr);
@@ -113,21 +113,21 @@ fun handleVidMessage(serverPid, msg) {
 
         var iceClient = spawnClient { checkCandidates(serverPid, foreignID) };
 
-        print("I am " ^^ localID ^^ " sending an accept to " ^^ foreignID);
+        #print("I am " ^^ localID ^^ " sending an accept to " ^^ foreignID);
         ()
 
       case "accept" ->
-        print("This is an accept VidMessage");
+        #print("This is an accept VidMessage");
         var answerStr = JSFFI.toString(msg.data);
         JSFFI.createAccept(foreignID,answerStr);
 
         var _ = waitForAsync(foreignID);
 
-        print("I am " ^^ localID ^^ " accepting an offer from " ^^ foreignID);
+        #print("I am " ^^ localID ^^ " accepting an offer from " ^^ foreignID);
         ()
 
       case "ice" ->
-        print("This is an ICE VidMessage");
+        #print("This is an ICE VidMessage");
         var candidate = JSFFI.toString(msg.data);
         JSFFI.newRemoteCandidate(foreignID,candidate);
         ()
@@ -238,6 +238,46 @@ fun getAllCheckedIDs(){
   }
 }
 
+fun changeToRoom(myInfo, toRoom, serverPid) {
+  if(myInfo.room <> toRoom) {
+    JSFFI.hangupAll();
+
+    serverPid ! ChangeRoom(JSFFI.getID(), toRoom);
+    var myNewInfo = (clientID = myInfo.clientID, clientName = myInfo.clientName, room = toRoom);
+    moveToRoom(myNewInfo);
+
+    myNewInfo
+    } else {myInfo}
+}
+
+fun handleMigrate(serverPid, myInfo, event) {
+
+  var curNode = getTarget(event);
+  var curDiv = parentNode(curNode);
+  var toRoom = domGetAttributeFromRef(curDiv, "id");
+
+  var idList = getAllCheckedIDs();
+
+  var info = for (id <- idList) {
+
+    if(id == myInfo.clientID) {
+
+      [changeToRoom(myInfo, toRoom, serverPid)]
+    } else {
+      serverPid ! Send(id, RequestRoomChange(senderID = myInfo.clientID, room = toRoom));
+      []
+    }
+  };
+
+  if (length(info) > 0) {
+    hd(info)
+  } else {
+    myInfo
+  }
+
+
+}
+
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
 fun clientLoop(serverPid, othersInfo, myInfo) {
@@ -263,31 +303,16 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           handleInitialState(msg);
           clientLoop(serverPid, msg, myInfo)
 
+        case RequestRoomChange(msg) ->
+          print("Request Received from " ^^ msg.senderID ^^ " for room " ^^ msg.room);
+          var myNewInfo = changeToRoom(myInfo, msg.room, serverPid);
+          clientLoop(serverPid, othersInfo, myNewInfo)
+
         case Migrate(event) ->
           print("Migrate Received");
+          var myNewInfo = handleMigrate(serverPid, myInfo, event);
+          clientLoop(serverPid, othersInfo, myNewInfo)
 
-          var curNode = getTarget(event);
-          var curDiv = parentNode(curNode);
-          var toRoom = domGetAttributeFromRef(curDiv, "id");
-
-          var idList = getAllCheckedIDs();
-
-          var temp = for (id <- idList) {
-            print(id);
-            [id]
-          };
-
-          if(myInfo.room <> toRoom) {
-
-            JSFFI.hangupAll();
-
-            serverPid ! ChangeRoom(JSFFI.getID(), toRoom);
-            var myNewInfo = (clientID = myInfo.clientID, clientName = myInfo.clientName, room = toRoom);
-            moveToRoom(myNewInfo);
-            clientLoop(serverPid, othersInfo, myNewInfo)
-          } else {
-            clientLoop(serverPid, othersInfo, myInfo)
-          }
     }
 }
 
@@ -399,7 +424,6 @@ fun serverLoop(clients) server {
 
             else
               [(pid, clientInfo)];
-
 
           var clientsToUpdate = for ((pid , clientInfo) <- newClients)
             if (clientInfo.clientID <> userID) {
