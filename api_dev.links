@@ -279,6 +279,17 @@ fun handleMigrate(serverPid, myInfo, event) {
 
 }
 
+fun dispRoomRequest(msg){
+  var msgText = msg.senderName ^^ " wants you to move to room " ^^ msg.room;
+  var msgXML =
+    <tr><td>
+      {stringToXml(msgText)}
+    </td></tr>;
+
+
+  appendChildren(msgXML, getNodeById("msgTable"))
+}
+
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
 fun clientLoop(serverPid, othersInfo, myInfo) {
@@ -306,12 +317,8 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
 
         case RequestRoomChange(msg) ->
           print("Request Received from " ^^ msg.senderID ^^ " for room " ^^ msg.room);
-          if(JSFFI.askForYesNo(msg.senderName ^^ " wants you to join room " ^^ msg.room) == "true"){
-            var myNewInfo = changeToRoom(myInfo, msg.room, serverPid);
-            clientLoop(serverPid, othersInfo, myNewInfo)
-          } else {
-            clientLoop(serverPid, othersInfo, myInfo)
-          }
+          dispRoomRequest(msg);
+          clientLoop(serverPid, othersInfo, myInfo)
 
 
 
@@ -367,6 +374,10 @@ fun mainPage(serverPid) {
           <button type="submit">Room 2</button>
         </form>
       </div>
+    </div>
+    <div id = "msgs">
+      <table id = "msgTable">
+      </table>
     </div>
     <div id = "vids"></div>
 
