@@ -14,6 +14,7 @@ module JSFFI {
     checkAsyncDone: (String) ~> (String);
     hangup: (String) ~> ();
     hangupAll: () ~> ();
+    togMute: (String) ~> ();
 
     checkForIceCandidates: (String) ~> (String);
     newRemoteCandidate: (String, String) ~> ();
@@ -149,6 +150,8 @@ fun moveToRoom(changedInfo){
 
   var node = getNodeById(divID);
 
+  var clientPid = self();
+
   if(not(isNull(node))){
     var tempXML = <div id="tempNodeID"></div>;
     appendChildren(tempXML, getNodeById(roomNum));
@@ -163,6 +166,7 @@ fun moveToRoom(changedInfo){
       <div id = "{divID}">
         <input type="checkbox" id="{checkID}" name="{checkID}" value="{clientID}"></input>
         <label for="{checkID}">{stringToXml(clientName)}</label>
+          <button type="submit" l:onclick="{clientPid ! ToggleMute(clientID)}">Mute</button>
       </div>;
 
     appendChildren(nameXML, getNodeById(roomNum))
@@ -290,6 +294,22 @@ fun dispRoomRequest(msg){
   appendChildren(msgXML, getNodeById("msgTable"))
 }
 
+fun handleMute(clientID){
+  var vidToToggleMute = getNodeById("VidOf" ^^ clientID);
+  if (not(isNull(vidToToggleMute))){
+
+    if(domHasAttribute(vidToToggleMute, "muted")){
+
+      domRemoveAttributeFromRef(vidToToggleMute, "muted")
+
+    } else {
+
+      domSetAttributeFromRef(vidToToggleMute, "muted", "true")
+
+    }
+  } else {}
+}
+
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
 fun clientLoop(serverPid, othersInfo, myInfo) {
@@ -320,12 +340,15 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           dispRoomRequest(msg);
           clientLoop(serverPid, othersInfo, myInfo)
 
-
-
         case Migrate(event) ->
           print("Migrate Received");
           var myNewInfo = handleMigrate(serverPid, myInfo, event);
           clientLoop(serverPid, othersInfo, myNewInfo)
+
+        case ToggleMute(msg) ->
+          print("Muting " ^^ msg);
+          JSFFI.togMute(msg);
+          clientLoop(serverPid, othersInfo, myInfo)
 
     }
 }

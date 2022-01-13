@@ -9,6 +9,15 @@ function _getLocalName(){
   return localName;
 }
 
+function _askForYesNo(requestStr){
+  if(confirm(requestStr)){
+    return "true";
+  }
+  else {
+    return "false";
+  }
+}
+
 function _toStr(object) {
   return object;
 }
@@ -23,6 +32,7 @@ function _getID() {
 
 var getLocalName = LINKS.kify(_getLocalName);
 var setName = LINKS.kify(_setName);
+var askForYesNo = LINKS.kify(_askForYesNo);
 var toString = LINKS.kify(_toStr);
 var setID = LINKS.kify(_setID);
 var getID = LINKS.kify(_getID);
@@ -170,12 +180,23 @@ async function _newRemoteCandidate(foreignID, iceCandidate){
   }
 }
 
+function _togMute(foreignID){
+  if(foreignID in peerData){
+    peerData[foreignID].remoteStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+    console.log(peerData[foreignID].remoteStream.getAudioTracks().length + " tracks toggled");
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
 var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);
 var createAnswer = LINKS.kify(_createAnswer);
 var createAccept = LINKS.kify(_createAccept);
 var hangup = LINKS.kify(_hangup);
 var hangupAll = LINKS.kify(_hangupAll);
+var togMute = LINKS.kify(_togMute);
 
 var checkAsyncDone = LINKS.kify(_checkAsyncDone);
 
