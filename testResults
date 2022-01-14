@@ -1,0 +1,4 @@
+Multi-user stress testing:
+  -no noticeable delay at 5 concurrent users (20 p2p connections)
+  -strong delay/unusable at 6 concurrent users (30 p2p connections)
+  -one can assume therefore, single-user can maintain a call with 20-30 people simultaneously (if limiting factor is p2p connections)
