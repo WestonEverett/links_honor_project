@@ -15,6 +15,9 @@ module JSFFI {
     hangup: (String) ~> ();
     hangupAll: () ~> ();
     togMute: (String) ~> ();
+    togDeaf: (String) ~> ();
+    togBlind: (String) ~> ();
+    togHide: (String) ~> ();
 
     checkForIceCandidates: (String) ~> (String);
     newRemoteCandidate: (String, String) ~> ();
@@ -166,7 +169,11 @@ fun moveToRoom(changedInfo){
       <div id = "{divID}">
         <input type="checkbox" id="{checkID}" name="{checkID}" value="{clientID}"></input>
         <label for="{checkID}">{stringToXml(clientName)}</label>
-          <button type="submit" l:onclick="{clientPid ! ToggleMute(clientID)}">Mute</button>
+        <button type="submit" l:onclick="{clientPid ! ChangeAudVid("mute", clientID)}">Mute</button>
+        <button type="submit" l:onclick="{clientPid ! ChangeAudVid("deaf", clientID)}">Deafen</button>
+        <button type="submit" l:onclick="{clientPid ! ChangeAudVid("hide", clientID)}">Hide</button>
+        <button type="submit" l:onclick="{clientPid ! ChangeAudVid("blind", clientID)}">Blind</button>
+
       </div>;
 
     appendChildren(nameXML, getNodeById(roomNum))
@@ -310,6 +317,24 @@ fun handleMute(clientID){
   } else {}
 }
 
+fun handleAudVidChange(effect, id){
+
+  switch(effect){
+
+    case "mute" ->
+      JSFFI.togMute(id)
+
+    case "deaf" ->
+      JSFFI.togDeaf(id)
+
+    case "hide" ->
+      JSFFI.togHide(id)
+
+    case "blind" ->
+      JSFFI.togBlind(id)
+  }
+}
+
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
 fun clientLoop(serverPid, othersInfo, myInfo) {
@@ -345,9 +370,13 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           var myNewInfo = handleMigrate(serverPid, myInfo, event);
           clientLoop(serverPid, othersInfo, myNewInfo)
 
-        case ToggleMute(msg) ->
-          print("Muting " ^^ msg);
-          JSFFI.togMute(msg);
+        case ChangeAudVid(effect, clientID) ->
+          print(effect ^^ " " ^^ clientID);
+          if(clientID == myInfo.clientID){
+          #  handleOwnAudVidChange(effect)
+          } else {
+            handleAudVidChange(effect, clientID)
+          };
           clientLoop(serverPid, othersInfo, myInfo)
 
     }

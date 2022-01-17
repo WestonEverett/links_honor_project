@@ -79,7 +79,7 @@ async function _createOffer(foreignID) {
 }
 
 async function preparePC(foreignID){
-  peerData[foreignID] = {pc:"none", foreignID:foreignID, iceCandidates:[], dataStr:"wait", remoteStream: new MediaStream()}
+  peerData[foreignID] = {pc:"none", foreignID:foreignID, iceCandidates:[], dataStr:"wait", remoteStream: new MediaStream(), localStream: new MediaStream()}
 
   var newVid = document.createElement('video');
   newVid.setAttribute('autoplay', 'true');
@@ -110,8 +110,8 @@ async function preparePC(foreignID){
     }
   });
 
-  const localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-  localStream.getTracks().forEach((track) => {peerData[foreignID].pc.addTrack(track, localStream); console.log("track attached");});
+  peerData[foreignID].localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+  peerData[foreignID].localStream.getTracks().forEach((track) => {peerData[foreignID].pc.addTrack(track, localStream); console.log("track attached");});
 }
 
 function _checkAsyncDone(foreignID) {
@@ -190,6 +190,36 @@ function _togMute(foreignID){
   }
 }
 
+function _togHide(foreignID){
+  if(foreignID in peerData){
+    peerData[foreignID].remoteStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
+    console.log(peerData[foreignID].remoteStream.getVideoTracks().length + " tracks toggled");
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
+function _togDeaf(foreignID){
+  if(foreignID in peerData){
+    peerData[foreignID].localStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+    console.log(peerData[foreignID].localStream.getAudioTracks().length + " tracks toggled");
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
+function _togBlind(foreignID){
+  if(foreignID in peerData){
+    peerData[foreignID].localStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
+    console.log(peerData[foreignID].remoteStream.getVideoTracks().length + " tracks toggled");
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
 var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);
 var createAnswer = LINKS.kify(_createAnswer);
@@ -197,6 +227,9 @@ var createAccept = LINKS.kify(_createAccept);
 var hangup = LINKS.kify(_hangup);
 var hangupAll = LINKS.kify(_hangupAll);
 var togMute = LINKS.kify(_togMute);
+var togHide = LINKS.kify(_togHide);
+var togDeaf = LINKS.kify(_togDeaf);
+var togBlind = LINKS.kify(_togBlind);
 
 var checkAsyncDone = LINKS.kify(_checkAsyncDone);
 
