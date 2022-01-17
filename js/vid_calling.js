@@ -185,6 +185,11 @@ function _togMute(foreignID){
     peerData[foreignID].remoteStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
     console.log(peerData[foreignID].remoteStream.getAudioTracks().length + " tracks toggled");
   }
+  else if(foreignID == localID) {
+    for(id in peerData){
+      peerData[id].localStream.getAudioTracks().forEach(track => track.enabled = false);
+    }
+  }
   else {
     console.log("foreignID not found");
   }
@@ -194,6 +199,11 @@ function _togHide(foreignID){
   if(foreignID in peerData){
     peerData[foreignID].remoteStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
     console.log(peerData[foreignID].remoteStream.getVideoTracks().length + " tracks toggled");
+  }
+  else if(foreignID == localID) {
+    for(id in peerData){
+      peerData[id].localStream.getVideoTracks().forEach(track => track.enabled = false);
+    }
   }
   else {
     console.log("foreignID not found");
@@ -205,6 +215,11 @@ function _togDeaf(foreignID){
     peerData[foreignID].localStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
     console.log(peerData[foreignID].localStream.getAudioTracks().length + " tracks toggled");
   }
+  else if(foreignID == localID) {
+    for(id in peerData){
+      peerData[id].remoteStream.getAudioTracks().forEach(track => track.enabled = false);
+    }
+  }
   else {
     console.log("foreignID not found");
   }
@@ -214,6 +229,11 @@ function _togBlind(foreignID){
   if(foreignID in peerData){
     peerData[foreignID].localStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
     console.log(peerData[foreignID].remoteStream.getVideoTracks().length + " tracks toggled");
+  }
+  else if(foreignID == localID) {
+    for(id in peerData){
+      peerData[id].remoteStream.getVideoTracks().forEach(track => track.enabled = false);
+    }
   }
   else {
     console.log("foreignID not found");

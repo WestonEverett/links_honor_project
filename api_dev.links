@@ -156,14 +156,19 @@ fun moveToRoom(changedInfo){
   var clientPid = self();
 
   if(not(isNull(node))){
-    var tempXML = <div id="tempNodeID"></div>;
-    appendChildren(tempXML, getNodeById(roomNum));
+    if(roomNum <> "Exit"){
+      var tempXML = <div id="tempNodeID"></div>;
+      appendChildren(tempXML, getNodeById(roomNum));
 
-    var tempNode = getNodeById("tempNodeID");
+      var tempNode = getNodeById("tempNodeID");
 
-    swapNodes(node, tempNode);
+      swapNodes(node, tempNode);
 
-    removeNode(tempNode)
+      removeNode(tempNode)
+    }
+    else {
+      removeNode(node)
+    }
   } else {
     var nameXML =
       <div id = "{divID}">
@@ -206,7 +211,8 @@ fun handleStateUpdate(serverPid, oldOthersInfo, myInfo, changedInfo) {
 
       moveToRoom(changedInfo);
 
-      [changedInfo]
+      if(changedInfo.room <> "Exit") [changedInfo] else []
+
     }
     else {
       [c]
@@ -291,30 +297,16 @@ fun handleMigrate(serverPid, myInfo, event) {
 }
 
 fun dispRoomRequest(msg){
+  var clientPid = self();
   var msgText = msg.senderName ^^ " wants you to move to room " ^^ msg.room;
   var msgXML =
     <tr><td>
       {stringToXml(msgText)}
+      <button type="submit" l:onclick="{clientPid ! ChangeRoomByNum(msg.room); removeNode(getTarget(event))}">Accept</button>
     </td></tr>;
 
 
   appendChildren(msgXML, getNodeById("msgTable"))
-}
-
-fun handleMute(clientID){
-  var vidToToggleMute = getNodeById("VidOf" ^^ clientID);
-  if (not(isNull(vidToToggleMute))){
-
-    if(domHasAttribute(vidToToggleMute, "muted")){
-
-      domRemoveAttributeFromRef(vidToToggleMute, "muted")
-
-    } else {
-
-      domSetAttributeFromRef(vidToToggleMute, "muted", "true")
-
-    }
-  } else {}
 }
 
 fun handleAudVidChange(effect, id){
@@ -372,12 +364,20 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
 
         case ChangeAudVid(effect, clientID) ->
           print(effect ^^ " " ^^ clientID);
-          if(clientID == myInfo.clientID){
-          #  handleOwnAudVidChange(effect)
-          } else {
-            handleAudVidChange(effect, clientID)
-          };
+          handleAudVidChange(effect, clientID);
           clientLoop(serverPid, othersInfo, myInfo)
+
+        case ChangeRoomByNum(roomNum) ->
+          print("moving to room " ^^ roomNum);
+          var myNewInfo = changeToRoom(myInfo, roomNum, serverPid);
+          clientLoop(serverPid, othersInfo, myNewInfo)
+
+        case Exit() ->
+          print("Exiting");
+          var myNewInfo = (clientID = myInfo.clientID, clientName = myInfo.clientName, room = "Exit");
+          serverPid ! UserExit(myNewInfo);
+          removeNode(getDocumentNode())
+
 
     }
 }
@@ -410,6 +410,9 @@ fun mainPage(serverPid) {
 
   page
   <html>
+
+    <button type="submit" l:onclick="{clientPid ! Exit()}">Exit</button>
+
     <div id = "rooms">
       <div id = "0">
         <form l:onsubmit="{clientPid ! Migrate(event)}">
@@ -427,10 +430,12 @@ fun mainPage(serverPid) {
         </form>
       </div>
     </div>
+
     <div id = "msgs">
       <table id = "msgTable">
       </table>
     </div>
+
     <div id = "vids"></div>
 
   </html>
@@ -482,6 +487,13 @@ fun serverLoop(clients) server {
         case Broadcast(msg) ->
           broadcast(clients, msg);
           serverLoop(clients)
+
+        case UserExit(leavingClientInfo) ->
+          var newClients = for ((pid , clientInfo) <- clients)
+            if (leavingClientInfo.clientID == clientInfo.clientID) [] else [(pid, clientInfo)];
+
+          broadcast(newClients, StateUpdate(leavingClientInfo));
+          serverLoop(newClients)
 
         case ChangeRoom(userID, newRoom) ->
 
