@@ -145,9 +145,9 @@ fun moveToRoom(changedInfo){
 
   var clientID = changedInfo.clientID;
   var clientName = changedInfo.clientName;
-  var roomNum = changedInfo.room;
+  var roomName = changedInfo.room;
 
-  print("placing " ^^ clientName ^^ " with id " ^^ clientID ^^ " in room " ^^ roomNum);
+  print("placing " ^^ clientName ^^ " with id " ^^ clientID ^^ " in room " ^^ roomName);
   var divID = "DivOf" ^^ clientID;
   var checkID = "CheckOf" ^^ clientID;
 
@@ -156,9 +156,9 @@ fun moveToRoom(changedInfo){
   var clientPid = self();
 
   if(not(isNull(node))){
-    if(roomNum <> "Exit"){
+    if(roomName <> "Exit"){
       var tempXML = <div id="tempNodeID"></div>;
-      appendChildren(tempXML, getNodeById(roomNum));
+      appendChildren(tempXML, getNodeById(roomName));
 
       var tempNode = getNodeById("tempNodeID");
 
@@ -181,7 +181,7 @@ fun moveToRoom(changedInfo){
 
       </div>;
 
-    appendChildren(nameXML, getNodeById(roomNum))
+    appendChildren(nameXML, getNodeById(roomName))
   };
 
 
@@ -299,14 +299,15 @@ fun handleMigrate(serverPid, myInfo, event) {
 fun dispRoomRequest(msg){
   var clientPid = self();
   var msgText = msg.senderName ^^ " wants you to move to room " ^^ msg.room;
+  var msgTable = getNodeById("msgTable");
   var msgXML =
     <tr><td>
       {stringToXml(msgText)}
       <button type="submit" l:onclick="{clientPid ! ChangeRoomByNum(msg.room); removeNode(getTarget(event))}">Accept</button>
     </td></tr>;
 
-
-  appendChildren(msgXML, getNodeById("msgTable"))
+  appendChildren(msgXML, msgTable);
+  if(length(domGetChildrenFromRef(msgTable)) > 5) removeNode(firstChild(msgTable)) else ()
 }
 
 fun handleAudVidChange(effect, id){
@@ -367,9 +368,9 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           handleAudVidChange(effect, clientID);
           clientLoop(serverPid, othersInfo, myInfo)
 
-        case ChangeRoomByNum(roomNum) ->
-          print("moving to room " ^^ roomNum);
-          var myNewInfo = changeToRoom(myInfo, roomNum, serverPid);
+        case ChangeRoomByNum(roomName) ->
+          print("moving to room " ^^ roomName);
+          var myNewInfo = changeToRoom(myInfo, roomName, serverPid);
           clientLoop(serverPid, othersInfo, myNewInfo)
 
         case Exit() ->
