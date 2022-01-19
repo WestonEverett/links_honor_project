@@ -180,14 +180,14 @@ async function _newRemoteCandidate(foreignID, iceCandidate){
   }
 }
 
-function _togMute(foreignID){
+function _setMute(foreignID, toBool){
   if(foreignID in peerData){
-    peerData[foreignID].remoteStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+    peerData[foreignID].remoteStream.getAudioTracks().forEach(track => track.enabled = !toBool);
     console.log(peerData[foreignID].remoteStream.getAudioTracks().length + " tracks toggled");
   }
   else if(foreignID == localID) {
     for(id in peerData){
-      peerData[id].localStream.getAudioTracks().forEach(track => track.enabled = false);
+      peerData[id].localStream.getAudioTracks().forEach(track => track.enabled = !toBool);
     }
   }
   else {
@@ -195,14 +195,14 @@ function _togMute(foreignID){
   }
 }
 
-function _togHide(foreignID){
+function _setHide(foreignID, toBool){
   if(foreignID in peerData){
-    peerData[foreignID].remoteStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
+    peerData[foreignID].remoteStream.getVideoTracks().forEach(track => track.enabled = !toBool);
     console.log(peerData[foreignID].remoteStream.getVideoTracks().length + " tracks toggled");
   }
   else if(foreignID == localID) {
     for(id in peerData){
-      peerData[id].localStream.getVideoTracks().forEach(track => track.enabled = false);
+      peerData[id].localStream.getVideoTracks().forEach(track => track.enabled = !toBool);
     }
   }
   else {
@@ -210,14 +210,14 @@ function _togHide(foreignID){
   }
 }
 
-function _togDeaf(foreignID){
+function _setDeaf(foreignID, toBool){
   if(foreignID in peerData){
-    peerData[foreignID].localStream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+    peerData[foreignID].localStream.getAudioTracks().forEach(track => track.enabled = !toBool);
     console.log(peerData[foreignID].localStream.getAudioTracks().length + " tracks toggled");
   }
   else if(foreignID == localID) {
     for(id in peerData){
-      peerData[id].remoteStream.getAudioTracks().forEach(track => track.enabled = false);
+      peerData[id].remoteStream.getAudioTracks().forEach(track => track.enabled = !toBool);
     }
   }
   else {
@@ -225,14 +225,14 @@ function _togDeaf(foreignID){
   }
 }
 
-function _togBlind(foreignID){
+function _setBlind(foreignID, toBool){
   if(foreignID in peerData){
-    peerData[foreignID].localStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
+    peerData[foreignID].localStream.getVideoTracks().forEach(track => track.enabled = !toBool);
     console.log(peerData[foreignID].remoteStream.getVideoTracks().length + " tracks toggled");
   }
   else if(foreignID == localID) {
     for(id in peerData){
-      peerData[id].remoteStream.getVideoTracks().forEach(track => track.enabled = false);
+      peerData[id].remoteStream.getVideoTracks().forEach(track => track.enabled = !toBool);
     }
   }
   else {
@@ -246,10 +246,10 @@ var createAnswer = LINKS.kify(_createAnswer);
 var createAccept = LINKS.kify(_createAccept);
 var hangup = LINKS.kify(_hangup);
 var hangupAll = LINKS.kify(_hangupAll);
-var togMute = LINKS.kify(_togMute);
-var togHide = LINKS.kify(_togHide);
-var togDeaf = LINKS.kify(_togDeaf);
-var togBlind = LINKS.kify(_togBlind);
+var setMute = LINKS.kify(_setMute);
+var setHide = LINKS.kify(_setHide);
+var setDeaf = LINKS.kify(_setDeaf);
+var setBlind = LINKS.kify(_setBlind);
 
 var checkAsyncDone = LINKS.kify(_checkAsyncDone);
 

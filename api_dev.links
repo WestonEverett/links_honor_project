@@ -14,15 +14,19 @@ module JSFFI {
     checkAsyncDone: (String) ~> (String);
     hangup: (String) ~> ();
     hangupAll: () ~> ();
-    togMute: (String) ~> ();
-    togDeaf: (String) ~> ();
-    togBlind: (String) ~> ();
-    togHide: (String) ~> ();
+    setMute: (String, Bool) ~> ();
+    setDeaf: (String, Bool) ~> ();
+    setBlind: (String, Bool) ~> ();
+    setHide: (String, Bool) ~> ();
 
     checkForIceCandidates: (String) ~> (String);
     newRemoteCandidate: (String, String) ~> ();
   }
 }
+
+typename ClientDescription = (clientID:String, clientName:String, room:String);
+typename AudVidMods = (mute:Bool, deaf:Bool, hid:Bool, blind:Bool);
+typename UserClientRecord = (clientDesc:ClientDescription, audVidMods:AudVidMods);
 
 fun displayLocalVid() {
   var vidXML = <video id = "local_vid" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
@@ -31,15 +35,8 @@ fun displayLocalVid() {
   JSFFI.playLocalVideo("local_vid")
 }
 
-fun getSelfInfo() {
-  var name = JSFFI.getLocalName();
-  var id = JSFFI.getID();
-
-  (clientName = name, clientID = id)
-}
-
 ##WebRTC Functions
-
+sig waitForAsync : (String) ~> (String)
 fun waitForAsync(foreignID){
 
   var response = JSFFI.checkAsyncDone(foreignID);
@@ -78,11 +75,11 @@ fun handleVidMessage(serverPid, msg) {
 
   var localID = JSFFI.getID();
 
-  var destID = JSFFI.toString(msg.destID);
+  var destID = msg.destID;
 
-  var foreignID = JSFFI.toString(msg.senderID);
+  var foreignID = msg.senderID;
 
-  var type = JSFFI.toString(msg.msgType);
+  var type = msg.msgType;
 
   #print("I am " ^^ localID ^^ " this is for " ^^ destID ^^ " from " ^^ foreignID);
 
@@ -141,7 +138,11 @@ fun handleVidMessage(serverPid, msg) {
 }
 
 ##changedInfo = clientInfo record
-fun moveToRoom(changedInfo){
+#sig moveToRoom : (UserClientRecord) ~> ()
+fun moveToRoom(changedInfoAll){
+
+  var changedInfo = changedInfoAll.clientDesc;
+  var audVid = changedInfoAll.audVidMods;
 
   var clientID = changedInfo.clientID;
   var clientName = changedInfo.clientName;
@@ -174,29 +175,32 @@ fun moveToRoom(changedInfo){
       <div id = "{divID}">
         <input type="checkbox" id="{checkID}" name="{checkID}" value="{clientID}"></input>
         <label for="{checkID}">{stringToXml(clientName)}</label>
-        <button type="submit" l:onclick="{clientPid ! ChangeAudVid("mute", clientID)}">Mute</button>
-        <button type="submit" l:onclick="{clientPid ! ChangeAudVid("deaf", clientID)}">Deafen</button>
-        <button type="submit" l:onclick="{clientPid ! ChangeAudVid("hide", clientID)}">Hide</button>
-        <button type="submit" l:onclick="{clientPid ! ChangeAudVid("blind", clientID)}">Blind</button>
+        <button type="submit" id="{"mute"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("mute", clientID)}">{stringToXml(if(audVid.mute) "Unmute" else "Mute")}</button>
+        <button type="submit" id="{"deaf"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("deaf", clientID)}">{stringToXml(if(audVid.deaf) "Undeafen" else "Deafen")}</button>
+        <button type="submit" id="{"hid"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("hide", clientID)}">{stringToXml(if(audVid.hid) "Show" else "Hide")}</button>
+        <button type="submit" id="{"blind"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("blind", clientID)}">{stringToXml(if(audVid.blind) "Unblind" else "Blind")}</button>
 
       </div>;
 
     appendChildren(nameXML, getNodeById(roomName))
   };
-
-
   ()
 }
 
 
 ##StateUpdate((clientInfo(clientID, clientName, room)))
-
+#sig handleStateUpdate : (Process, [UserClientRecord], UserClientRecord, ClientDescription) ~> [UserClientRecord]
 fun handleStateUpdate(serverPid, oldOthersInfo, myInfo, changedInfo) {
 
-  var newOthersInfo = for (c <- oldOthersInfo) {
+  var myRoom = myInfo.clientDesc.room;
+
+  for (cInfo <- oldOthersInfo) {
+    var c = cInfo.clientDesc;
     if (c.clientID == changedInfo.clientID) {
 
-      if(and([c.room == myInfo.room, myInfo.room <> "0"])){
+      var fullChangedInfo = (cInfo with clientDesc = changedInfo);
+
+      if(and([c.room == myRoom, myRoom <> "0"])){
         JSFFI.hangup(c.clientID);
         print("Hanging up with " ^^ c.clientID)
       }
@@ -204,24 +208,28 @@ fun handleStateUpdate(serverPid, oldOthersInfo, myInfo, changedInfo) {
       ()
       };
 
-      if(and([changedInfo.room == myInfo.room, myInfo.room <> "0"])) {
-        serverPid ! Send(changedInfo.clientID, VidMessage(senderID = myInfo.clientID, destID = changedInfo.clientID, msgType = "initial", data = ""));
+      if(and([changedInfo.room == myRoom, myRoom <> "0"])) {
+        serverPid ! Send(changedInfo.clientID, VidMessage(senderID = myInfo.clientDesc.clientID, destID = changedInfo.clientID, msgType = "initial", data = ""));
         print("Sending Init VidMessage to " ^^ changedInfo.clientID)
       } else {};
 
-      moveToRoom(changedInfo);
+      moveToRoom(fullChangedInfo);
 
-      if(changedInfo.room <> "Exit") [changedInfo] else []
+      if(changedInfo.room <> "Exit") {
+        [fullChangedInfo]
+      } else {
+        []
+      }
 
     }
     else {
-      [c]
+      [cInfo]
     }
-  };
-  newOthersInfo
+  }
 }
 
 ##InitialState([clientInfo(clientID, clientName, room)])
+##sig handleInitialState : ([(UserClientRecord)]) ~> ()
 fun handleInitialState(clientArr) {
 
   var _ = for (c <- clientArr) {
@@ -231,6 +239,7 @@ fun handleInitialState(clientArr) {
   ()
 }
 
+sig getAllCheckedIDs : () ~> ([String])
 fun getAllCheckedIDs(){
 
   var roomTopNode = getNodeById("rooms");
@@ -256,12 +265,14 @@ fun getAllCheckedIDs(){
   }
 }
 
+#sig changeToRoom : (UserClientRecord, String, (Process ({hear:a::Any|b}), a::Any)) ~> (UserClientRecord)
 fun changeToRoom(myInfo, toRoom, serverPid) {
-  if(myInfo.room <> toRoom) {
+  if(myInfo.clientDesc.room <> toRoom) {
     JSFFI.hangupAll();
 
-    serverPid ! ChangeRoom(JSFFI.getID(), toRoom);
-    var myNewInfo = (clientID = myInfo.clientID, clientName = myInfo.clientName, room = toRoom);
+    var id = myInfo.clientDesc.clientID;
+    serverPid ! ChangeRoom(id, toRoom);
+    var myNewInfo = (myInfo with clientDesc = (myInfo.clientDesc with room = toRoom));
     moveToRoom(myNewInfo);
 
     myNewInfo
@@ -278,11 +289,12 @@ fun handleMigrate(serverPid, myInfo, event) {
 
   var info = for (id <- idList) {
 
-    if(id == myInfo.clientID) {
+    if(id == myInfo.clientDesc.clientID) {
 
       [changeToRoom(myInfo, toRoom, serverPid)]
     } else {
-      serverPid ! Send(id, RequestRoomChange(senderID = myInfo.clientID, senderName = myInfo.clientName, room = toRoom));
+      var newInfo = (myInfo.clientDesc with room = toRoom);
+      serverPid ! Send(id, RequestRoomChange(newInfo));
       []
     }
   };
@@ -296,45 +308,76 @@ fun handleMigrate(serverPid, myInfo, event) {
 
 }
 
+#sig dispRoomRequest : (ClientDescription) -> ()
 fun dispRoomRequest(msg){
   var clientPid = self();
-  var msgText = msg.senderName ^^ " wants you to move to room " ^^ msg.room;
+  var msgText = msg.clientName ^^ " wants you to move to room " ^^ msg.room;
   var msgTable = getNodeById("msgTable");
   var msgXML =
     <tr><td>
       {stringToXml(msgText)}
-      <button type="submit" l:onclick="{clientPid ! ChangeRoomByNum(msg.room); removeNode(getTarget(event))}">Accept</button>
+      <button type="submit" l:onclick="{clientPid ! ChangeRoomByName(msg.room); removeNode(getTarget(event))}">Accept</button>
     </td></tr>;
 
   appendChildren(msgXML, msgTable);
   if(length(domGetChildrenFromRef(msgTable)) > 5) removeNode(firstChild(msgTable)) else ()
 }
 
-fun handleAudVidChange(effect, id){
+sig updateAudVid : (UserClientRecord) ~> ()
+fun updateAudVid(info){
+  JSFFI.setMute(info.clientDesc.clientID, info.audVidMods.mute);
+  JSFFI.setDeaf(info.clientDesc.clientID, info.audVidMods.deaf);
+  JSFFI.setHide(info.clientDesc.clientID, info.audVidMods.hid);
+  JSFFI.setBlind(info.clientDesc.clientID, info.audVidMods.blind);
+  ()
+}
+
+sig handleAudVidChange : (String, UserClientRecord) ~> (UserClientRecord)
+fun handleAudVidChange(effect, info){
 
   switch(effect){
 
     case "mute" ->
-      JSFFI.togMute(id)
+      var newInfo = (info with audVidMods = (info.audVidMods with mute=not(info.audVidMods.mute)));
+      updateAudVid(newInfo);
+      var buttonTxt = if(newInfo.audVidMods.mute) "Unmute" else "Mute";
+      domSetPropertyFromRef(getNodeById("mute"^^newInfo.clientDesc.clientID), "innerHTML", buttonTxt);
+      newInfo
 
     case "deaf" ->
-      JSFFI.togDeaf(id)
+      var newInfo = (info with audVidMods = (info.audVidMods with deaf=not(info.audVidMods.deaf)));
+      updateAudVid(newInfo);
+      var buttonTxt = if(newInfo.audVidMods.deaf) "Undeafen" else "Deafen";
+      domSetPropertyFromRef(getNodeById("deaf"^^newInfo.clientDesc.clientID), "innerHTML", buttonTxt);
+      newInfo
 
     case "hide" ->
-      JSFFI.togHide(id)
+      var newInfo = (info with audVidMods = (info.audVidMods with hid=not(info.audVidMods.hid)));
+      updateAudVid(newInfo);
+      var buttonTxt = if(newInfo.audVidMods.hid) "Show" else "Hide";
+      domSetPropertyFromRef(getNodeById("hid"^^newInfo.clientDesc.clientID), "innerHTML", buttonTxt);
+      newInfo
 
     case "blind" ->
-      JSFFI.togBlind(id)
+      var newInfo = (info with audVidMods = (info.audVidMods with blind=not(info.audVidMods.blind)));
+      updateAudVid(newInfo);
+      var buttonTxt = if(newInfo.audVidMods.blind) "Unblind" else "Blind";
+      domSetPropertyFromRef(getNodeById("blind"^^newInfo.clientDesc.clientID), "innerHTML", buttonTxt);
+      newInfo
   }
 }
 
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
+##(clientDesc = (clientID,clientName,room), audVidMods = (mute=bool, deaf=bool, hid=bool, blind=bool))
+
 fun clientLoop(serverPid, othersInfo, myInfo) {
     receive {
         case NewClient(msg) ->
           print("New client registered " ^^ msg.clientID);
-          var othersNewInfo = msg :: othersInfo;
+          var newAudVidMod = (mute = false, deaf = false, hid = false, blind = false);
+          var newUser = (clientDesc = msg, audVidMods = newAudVidMod);
+          var othersNewInfo =  newUser :: othersInfo;
           clientLoop(serverPid, othersNewInfo, myInfo)
 
 
@@ -350,11 +393,13 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
 
         case InitialState(msg) ->
           print("InitialState received");
-          handleInitialState(msg);
-          clientLoop(serverPid, msg, myInfo)
+          var defaultAudVids = (mute = false, deaf = false, hid = false, blind = false);
+          var othersNewInfo = for (inf <- msg) [(clientDesc = inf, audVidMods = defaultAudVids)];
+          handleInitialState(othersNewInfo);
+          clientLoop(serverPid, othersNewInfo, myInfo)
 
         case RequestRoomChange(msg) ->
-          print("Request Received from " ^^ msg.senderID ^^ " for room " ^^ msg.room);
+          print("Request Received from " ^^ msg.clientID ^^ " for room " ^^ msg.room);
           dispRoomRequest(msg);
           clientLoop(serverPid, othersInfo, myInfo)
 
@@ -365,21 +410,20 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
 
         case ChangeAudVid(effect, clientID) ->
           print(effect ^^ " " ^^ clientID);
-          handleAudVidChange(effect, clientID);
-          clientLoop(serverPid, othersInfo, myInfo)
+          var othersNewInfo = for(info <- othersInfo) if(info.clientDesc.clientID <> clientID) [info] else [handleAudVidChange(effect, info)];
+          var myNewInfo = if(myInfo.clientDesc.clientID <> clientID) myInfo else handleAudVidChange(effect, myInfo);
+          clientLoop(serverPid, othersNewInfo, myNewInfo)
 
-        case ChangeRoomByNum(roomName) ->
+        case ChangeRoomByName(roomName) ->
           print("moving to room " ^^ roomName);
           var myNewInfo = changeToRoom(myInfo, roomName, serverPid);
           clientLoop(serverPid, othersInfo, myNewInfo)
 
         case Exit() ->
           print("Exiting");
-          var myNewInfo = (clientID = myInfo.clientID, clientName = myInfo.clientName, room = "Exit");
-          serverPid ! UserExit(myNewInfo);
+          var myNewInfo = (myInfo with clientDesc = (myInfo.clientDesc with room = "Exit"));
+          serverPid ! UserExit(myNewInfo.clientDesc);
           removeNode(getDocumentNode())
-
-
     }
 }
 
@@ -395,9 +439,13 @@ fun clientRegister(serverPid) {
     var id = JSFFI.getID();
     displayLocalVid();
 
-    var clientInfo = (clientID = id, clientName = name, room = "0");
+    var defaultAudVids = (mute=false, deaf=false, hid=false, blind=false);
+    var myClientDesc = (clientID = id, clientName = name, room = "0");
 
-    serverPid ! Register(self(), clientInfo);
+    #sig clientInfo : (UserClientRecord)
+    var clientInfo = (clientDesc = myClientDesc, audVidMods = defaultAudVids);
+
+    serverPid ! Register(self(), myClientDesc);
 
     clientLoop(serverPid, [], clientInfo)
 }
@@ -448,8 +496,8 @@ fun mainPage(serverPid) {
 fun broadcast(clients, msg) server {
     switch (clients) {
         case [] -> ()
-        case (c,_)::clients ->
-            c ! msg;
+        case (clientPid,_)::clients ->
+            clientPid ! msg;
             broadcast(clients, msg)
     }
 }
