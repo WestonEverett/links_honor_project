@@ -170,7 +170,7 @@ fun moveToRoom(changedInfoAll){
     else {
       removeNode(node)
     }
-  } else {
+  } else if (clientID <> JSFFI.getID()){
     var nameXML =
       <div id = "{divID}">
         <input type="checkbox" id="{checkID}" name="{checkID}" value="{clientID}"></input>
@@ -183,6 +183,14 @@ fun moveToRoom(changedInfoAll){
       </div>;
 
     appendChildren(nameXML, getNodeById(roomName))
+  } else {
+    var nameXML =
+      <div id = "{divID}">
+        <input type="checkbox" id="{checkID}" name="{checkID}" value="{clientID}" checked="true"></input>
+        <label for="{checkID}">{stringToXml(clientName)}</label>
+      </div>;
+
+      appendChildren(nameXML, getNodeById(roomName))
   };
   ()
 }
@@ -230,12 +238,13 @@ fun handleStateUpdate(serverPid, oldOthersInfo, myInfo, changedInfo) {
 
 ##InitialState([clientInfo(clientID, clientName, room)])
 ##sig handleInitialState : ([(UserClientRecord)]) ~> ()
-fun handleInitialState(clientArr) {
+fun handleInitialState(clientArr, myInfo) {
 
   var _ = for (c <- clientArr) {
     moveToRoom(c);
     []
   };
+  moveToRoom(myInfo);
   ()
 }
 
@@ -325,9 +334,21 @@ fun dispRoomRequest(msg){
 
 sig updateAudVid : (UserClientRecord) ~> ()
 fun updateAudVid(info){
+  print("updating " ^^info.clientDesc.clientName);
+  var buttonTxt = if(info.audVidMods.mute) "Unmute" else "Mute";
+  domSetPropertyFromRef(getNodeById("mute"^^info.clientDesc.clientID), "innerHTML", buttonTxt);
   JSFFI.setMute(info.clientDesc.clientID, info.audVidMods.mute);
+
+  var buttonTxt = if(info.audVidMods.deaf) "Undeafen" else "Deafen";
+  domSetPropertyFromRef(getNodeById("deaf"^^info.clientDesc.clientID), "innerHTML", buttonTxt);
   JSFFI.setDeaf(info.clientDesc.clientID, info.audVidMods.deaf);
+
+  var buttonTxt = if(info.audVidMods.hid) "Show" else "Hide";
+  domSetPropertyFromRef(getNodeById("hid"^^info.clientDesc.clientID), "innerHTML", buttonTxt);
   JSFFI.setHide(info.clientDesc.clientID, info.audVidMods.hid);
+
+  var buttonTxt = if(info.audVidMods.blind) "Unblind" else "Blind";
+  domSetPropertyFromRef(getNodeById("blind"^^info.clientDesc.clientID), "innerHTML", buttonTxt);
   JSFFI.setBlind(info.clientDesc.clientID, info.audVidMods.blind);
   ()
 }
@@ -335,36 +356,62 @@ fun updateAudVid(info){
 sig handleAudVidChange : (String, UserClientRecord) ~> (UserClientRecord)
 fun handleAudVidChange(effect, info){
 
-  switch(effect){
+  var newInfo = switch(effect){
 
     case "mute" ->
-      var newInfo = (info with audVidMods = (info.audVidMods with mute=not(info.audVidMods.mute)));
-      updateAudVid(newInfo);
-      var buttonTxt = if(newInfo.audVidMods.mute) "Unmute" else "Mute";
-      domSetPropertyFromRef(getNodeById("mute"^^newInfo.clientDesc.clientID), "innerHTML", buttonTxt);
-      newInfo
+      (info with audVidMods = (info.audVidMods with mute=not(info.audVidMods.mute)))
 
     case "deaf" ->
-      var newInfo = (info with audVidMods = (info.audVidMods with deaf=not(info.audVidMods.deaf)));
-      updateAudVid(newInfo);
-      var buttonTxt = if(newInfo.audVidMods.deaf) "Undeafen" else "Deafen";
-      domSetPropertyFromRef(getNodeById("deaf"^^newInfo.clientDesc.clientID), "innerHTML", buttonTxt);
-      newInfo
+      (info with audVidMods = (info.audVidMods with deaf=not(info.audVidMods.deaf)))
 
     case "hide" ->
-      var newInfo = (info with audVidMods = (info.audVidMods with hid=not(info.audVidMods.hid)));
-      updateAudVid(newInfo);
-      var buttonTxt = if(newInfo.audVidMods.hid) "Show" else "Hide";
-      domSetPropertyFromRef(getNodeById("hid"^^newInfo.clientDesc.clientID), "innerHTML", buttonTxt);
-      newInfo
+      (info with audVidMods = (info.audVidMods with hid=not(info.audVidMods.hid)))
 
     case "blind" ->
-      var newInfo = (info with audVidMods = (info.audVidMods with blind=not(info.audVidMods.blind)));
-      updateAudVid(newInfo);
-      var buttonTxt = if(newInfo.audVidMods.blind) "Unblind" else "Blind";
-      domSetPropertyFromRef(getNodeById("blind"^^newInfo.clientDesc.clientID), "innerHTML", buttonTxt);
-      newInfo
-  }
+      (info with audVidMods = (info.audVidMods with blind=not(info.audVidMods.blind)))
+  };
+
+  updateAudVid(newInfo);
+  newInfo
+
+}
+
+fun handleGlobalAudVid(demand, othersInfo){
+
+  var othersNewInfo = switch(demand){
+
+    case "muteAll" ->
+      for (info <- othersInfo) [(info with audVidMods = (info.audVidMods with mute=true))]
+
+    case "unmuteAll" ->
+      for (info <- othersInfo) [(info with audVidMods = (info.audVidMods with mute=false))]
+
+    case "deafenAll" ->
+      for (info <- othersInfo) [(info with audVidMods = (info.audVidMods with deaf=true))]
+
+    case "undeafenAll" ->
+      for (info <- othersInfo) [(info with audVidMods = (info.audVidMods with deaf=false))]
+
+    case "hideAll" ->
+      for (info <- othersInfo) [(info with audVidMods = (info.audVidMods with hid=true))]
+
+    case "showAll" ->
+      for (info <- othersInfo) [(info with audVidMods = (info.audVidMods with hid=false))]
+
+    case "blindAll" ->
+      for (info <- othersInfo) [(info with audVidMods = (info.audVidMods with blind=true))]
+
+    case "unblindAll" ->
+      for (info <- othersInfo) [(info with audVidMods = (info.audVidMods with blind=false))]
+
+  };
+
+  var _ = for (info <- othersNewInfo){
+    updateAudVid(info);
+    []
+  };
+
+  othersNewInfo
 }
 
 ## Loop thread run on the client, listens for NewClient messages from the server
@@ -377,7 +424,7 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           print("New client registered " ^^ msg.clientID);
           var newAudVidMod = (mute = false, deaf = false, hid = false, blind = false);
           var newUser = (clientDesc = msg, audVidMods = newAudVidMod);
-          var othersNewInfo =  newUser :: othersInfo;
+          var othersNewInfo =  if(newUser.clientDesc.clientID <> myInfo.clientDesc.clientID) newUser :: othersInfo else othersInfo;
           clientLoop(serverPid, othersNewInfo, myInfo)
 
 
@@ -395,7 +442,7 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           print("InitialState received");
           var defaultAudVids = (mute = false, deaf = false, hid = false, blind = false);
           var othersNewInfo = for (inf <- msg) [(clientDesc = inf, audVidMods = defaultAudVids)];
-          handleInitialState(othersNewInfo);
+          handleInitialState(othersNewInfo, myInfo);
           clientLoop(serverPid, othersNewInfo, myInfo)
 
         case RequestRoomChange(msg) ->
@@ -418,6 +465,11 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           print("moving to room " ^^ roomName);
           var myNewInfo = changeToRoom(myInfo, roomName, serverPid);
           clientLoop(serverPid, othersInfo, myNewInfo)
+
+        case GlobalAudVidUpdate(demand) ->
+          print(demand);
+          var othersNewInfo = handleGlobalAudVid(demand, othersInfo);
+          clientLoop(serverPid, othersNewInfo, myInfo)
 
         case Exit() ->
           print("Exiting");
@@ -461,6 +513,14 @@ fun mainPage(serverPid) {
   <html>
 
     <button type="submit" l:onclick="{clientPid ! Exit()}">Exit</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("muteAll")}">Mute All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("unmuteAll")}">Unmute All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("deafenAll")}">Deafen All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("undeafenAll")}">Undeafen All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("hideAll")}">Hide All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("showAll")}">Show All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("blindAll")}">Blind All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("unblindAll")}">Unblind All</button>
 
     <div id = "rooms">
       <div id = "0">
@@ -511,7 +571,7 @@ fun serverLoop(clients) server {
             # Broadcast a "NewClient" message
             broadcast(clients, NewClient(clientInfo));
 
-            var infoToSend = for ((_ , clientInfo) <- newClients){
+            var infoToSend = for ((_ , clientInfo) <- clients){
               [clientInfo]
             };
 
