@@ -37,24 +37,87 @@ var toString = LINKS.kify(_toStr);
 var setID = LINKS.kify(_setID);
 var getID = LINKS.kify(_getID);
 
-async function _playLocalVideo(ID) {
 
-  const constraints = window.constraints = {
-    audio: false,
-    video: true
+var audVidConstraints;
+
+async function _showInputs(){
+
+  var deviceInfos = await navigator.mediaDevices.enumerateDevices();
+
+  const audioInputSelect = document.getElementById('audioSource');
+  const videoSelect = document.getElementById('videoSource');
+  const selectors = [audioInputSelect, videoSelect];
+
+  const values = selectors.map(select => select.value);
+
+  console.log(deviceInfos.length);
+  for (let i = 0; i !== deviceInfos.length; ++i) {
+    const deviceInfo = deviceInfos[i];
+    const option = document.createElement('option');
+    option.value = deviceInfo.deviceId;
+    if (deviceInfo.kind === 'audioinput') {
+      option.text = deviceInfo.label || `microphone ${audioInputSelect.length + 1}`;
+      audioInputSelect.appendChild(option);
+    } else if (deviceInfo.kind === 'videoinput') {
+      option.text = deviceInfo.label || `camera ${videoSelect.length + 1}`;
+      videoSelect.appendChild(option);
+    } else {
+      console.log('Some other kind of source/device: ', deviceInfo);
+    }
+  }
+
+  selectors.forEach((select, selectorIndex) => {
+    if (Array.prototype.slice.call(select.childNodes).some(n => n.value === values[selectorIndex])) {
+      select.value = values[selectorIndex];
+    }
+  });
+}
+
+var deviceSet = "";
+
+async function _setInputs(){
+
+  const audioInputSelect = document.getElementById('audioSource');
+  const videoSelect = document.getElementById('videoSource');
+
+  const audioSource = audioInputSelect.value;
+  const videoSource = videoSelect.value;
+
+  console.log(audioSource);
+  console.log(videoSource);
+
+  audVidConstraints = {
+    audio: {deviceId: audioSource ? {exact: audioSource} : undefined},
+    video: {deviceId: videoSource ? {exact: videoSource} : undefined}
   };
+
+  audVidConstraintsLocal = {
+    audio: false,
+    video: {deviceId: videoSource ? {exact: videoSource} : undefined}
+  };
+
+  deviceSet = "set";
+}
+
+function _checkDeviceSet(){
+  return deviceSet;
+}
+
+let localStream;
+
+async function _playLocalVideo(ID) {
 
   const video = document.querySelector('video#' + ID);
 
   try {
-    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    localStream = await navigator.mediaDevices.getUserMedia(audVidConstraintsLocal);
     video.srcObject = localStream;
   } catch (e) {
     console.error("video error", e);
   }
 }
 
-let localStream;
+
 
 const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]};
 
@@ -110,7 +173,7 @@ async function preparePC(foreignID){
     }
   });
 
-  peerData[foreignID].localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+  peerData[foreignID].localStream = await navigator.mediaDevices.getUserMedia(audVidConstraints);
   peerData[foreignID].localStream.getTracks().forEach((track) => {peerData[foreignID].pc.addTrack(track, localStream); console.log("track attached");});
 }
 
@@ -246,10 +309,16 @@ var createAnswer = LINKS.kify(_createAnswer);
 var createAccept = LINKS.kify(_createAccept);
 var hangup = LINKS.kify(_hangup);
 var hangupAll = LINKS.kify(_hangupAll);
+
 var setMute = LINKS.kify(_setMute);
 var setHide = LINKS.kify(_setHide);
 var setDeaf = LINKS.kify(_setDeaf);
 var setBlind = LINKS.kify(_setBlind);
+
+var showInputs = LINKS.kify(_showInputs);
+var setInputs = LINKS.kify(_setInputs);
+
+var checkDeviceSet = LINKS.kify(_checkDeviceSet);
 
 var checkAsyncDone = LINKS.kify(_checkAsyncDone);
 

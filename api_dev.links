@@ -14,10 +14,16 @@ module JSFFI {
     checkAsyncDone: (String) ~> (String);
     hangup: (String) ~> ();
     hangupAll: () ~> ();
+
     setMute: (String, Bool) ~> ();
     setDeaf: (String, Bool) ~> ();
     setBlind: (String, Bool) ~> ();
     setHide: (String, Bool) ~> ();
+
+    showInputs: () ~> ();
+    setInputs: () ~> ();
+
+    checkDeviceSet: () ~> (String);
 
     checkForIceCandidates: (String) ~> (String);
     newRemoteCandidate: (String, String) ~> ();
@@ -414,12 +420,95 @@ fun handleGlobalAudVid(demand, othersInfo){
   othersNewInfo
 }
 
+fun replaceIntro(serverPid, clientPid){
+
+
+
+  replaceDocument(
+
+  <html>
+
+    <button type="submit" l:onclick="{clientPid ! Exit()}">Exit</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("muteAll")}">Mute All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("unmuteAll")}">Unmute All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("deafenAll")}">Deafen All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("undeafenAll")}">Undeafen All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("hideAll")}">Hide All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("showAll")}">Show All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("blindAll")}">Blind All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("unblindAll")}">Unblind All</button>
+
+    <div id = "rooms">
+      <div id = "0">
+        <form l:onsubmit="{clientPid ! Migrate(event)}">
+          <button type="submit">Quiet Room</button>
+        </form>
+      </div>
+      <div id = "1">
+        <form l:onsubmit="{clientPid ! Migrate(event)}">
+          <button type="submit">Room 1</button>
+        </form>
+      </div>
+      <div id = "2">
+        <form l:onsubmit="{clientPid ! Migrate(event)}">
+          <button type="submit">Room 2</button>
+        </form>
+      </div>
+    </div>
+
+    <div id = "msgs">
+      <table id = "msgTable">
+      </table>
+    </div>
+
+    <div id = "vids"></div>
+
+  </html>
+
+  )
+}
+
+## Run on the client whenever the page has loaded.
+## Registers itself with the server, then proceeds to loop, awaiting messages
+## from the server
+fun clientRegister(serverPid, clientPid) {
+
+    JSFFI.setInputs();
+
+    replaceIntro(serverPid, clientPid);
+
+    JSFFI.setName();
+    JSFFI.setID();
+
+    var name = JSFFI.getLocalName();
+    var id = JSFFI.getID();
+    displayLocalVid();
+
+    var defaultAudVids = (mute=false, deaf=false, hid=false, blind=false);
+    var myClientDesc = (clientID = id, clientName = name, room = "0");
+
+    #sig clientInfo : (UserClientRecord)
+    var clientInfo = (clientDesc = myClientDesc, audVidMods = defaultAudVids);
+
+    serverPid ! Register(self(), myClientDesc);
+
+    clientInfo
+}
+
+
 ## Loop thread run on the client, listens for NewClient messages from the server
 ## and prints a message to the console whenever one is received
 ##(clientDesc = (clientID,clientName,room), audVidMods = (mute=bool, deaf=bool, hid=bool, blind=bool))
 
 fun clientLoop(serverPid, othersInfo, myInfo) {
     receive {
+
+        case RegisterClient(serverPid2, clientPid) ->
+          print("register self");
+          var myNewInfo = clientRegister(serverPid, clientPid);
+          clientLoop(serverPid, [], myNewInfo)
+
+
         case NewClient(msg) ->
           print("New client registered " ^^ msg.clientID);
           var newAudVidMod = (mute = false, deaf = false, hid = false, blind = false);
@@ -479,74 +568,51 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
     }
 }
 
-## Run on the client whenever the page has loaded.
-## Registers itself with the server, then proceeds to loop, awaiting messages
-## from the server
-fun clientRegister(serverPid) {
 
-    JSFFI.setName();
-    JSFFI.setID();
+fun clientInit(serverPid){
 
-    var name = JSFFI.getLocalName();
-    var id = JSFFI.getID();
-    displayLocalVid();
+  var defaultAudVids = (mute=false, deaf=false, hid=false, blind=false);
+  var myClientDesc = (clientID = "0", clientName = "null", room = "0");
+  var clientInfo = (clientDesc = myClientDesc, audVidMods = defaultAudVids);
 
-    var defaultAudVids = (mute=false, deaf=false, hid=false, blind=false);
-    var myClientDesc = (clientID = id, clientName = name, room = "0");
+  JSFFI.showInputs();
 
-    #sig clientInfo : (UserClientRecord)
-    var clientInfo = (clientDesc = myClientDesc, audVidMods = defaultAudVids);
-
-    serverPid ! Register(self(), myClientDesc);
-
-    clientLoop(serverPid, [], clientInfo)
+  clientLoop(serverPid, [], clientInfo)
 }
+
+fun waitForDeviceSet(){
+  if(JSFFI.checkDeviceSet() == "set"){
+    ()
+  } else {
+    waitForDeviceSet()
+  }
+}
+
+
 
 ## Run on the server to generate a page for the client. Spawns a process on the
 ## client and generates the HTML.
 
 fun mainPage(serverPid) {
 
-  var clientPid = spawnClient { clientRegister(serverPid) };
+  var clientPid = spawnClient { clientInit(serverPid) };
 
   page
   <html>
-
-    <button type="submit" l:onclick="{clientPid ! Exit()}">Exit</button>
-    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("muteAll")}">Mute All</button>
-    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("unmuteAll")}">Unmute All</button>
-    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("deafenAll")}">Deafen All</button>
-    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("undeafenAll")}">Undeafen All</button>
-    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("hideAll")}">Hide All</button>
-    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("showAll")}">Show All</button>
-    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("blindAll")}">Blind All</button>
-    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("unblindAll")}">Unblind All</button>
-
-    <div id = "rooms">
-      <div id = "0">
-        <form l:onsubmit="{clientPid ! Migrate(event)}">
-          <button type="submit">Quiet Room</button>
-        </form>
-      </div>
-      <div id = "1">
-        <form l:onsubmit="{clientPid ! Migrate(event)}">
-          <button type="submit">Room 1</button>
-        </form>
-      </div>
-      <div id = "2">
-        <form l:onsubmit="{clientPid ! Migrate(event)}">
-          <button type="submit">Room 2</button>
-        </form>
-      </div>
+    <div class="select">
+      <label for="audioSource">
+        Audio input:
+      </label><select id="audioSource"></select>
+    </div>
+    <div class="select">
+      <label for="videoSource">
+      Video input:
+      </label><select id="videoSource"></select>
     </div>
 
-    <div id = "msgs">
-      <table id = "msgTable">
-      </table>
-    </div>
-
-    <div id = "vids"></div>
-
+    <form l:onsubmit="{clientPid ! RegisterClient(serverPid, clientPid)}">
+      <button type="submit">Accept</button>
+    </form>
   </html>
 
 }
