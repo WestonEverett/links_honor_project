@@ -3,7 +3,6 @@ module JSFFI {
     playLocalVideo : (String) ~> ();
     setName : () ~> ();
     askForYesNo : (String) ~> (String); #Possible bug, JSFFI issue returning Bool (doesn't recognize)
-    getLocalName : () ~> (String);
     toString : (String) ~> (String);
 
     createOffer: (String) ~> ();
@@ -490,13 +489,14 @@ fun replaceIntro(serverPid, clientPid){
 ## from the server
 fun clientRegister(serverPid, clientPid) {
 
+    var node = getNodeById("namebox");
+    var name = domGetNodeValueFromRef(node);
+
     JSFFI.setInputs();
 
     replaceIntro(serverPid, clientPid);
 
-    JSFFI.setName();
 
-    var name = JSFFI.getLocalName();
     displayLocalVid();
 
     var defaultAudVids = (mute=false, deaf=false, hid=false, blind=false);
@@ -624,6 +624,13 @@ fun mainPage(serverPid) {
       <label for="videoSource">
       Video input:
       </label><select id="videoSource"></select>
+    </div>
+
+    <div class="name">
+      <label for="namebox">
+        Enter Name:
+      </label>
+      <input type="text" id="namebox"></input>
     </div>
 
     <form l:onsubmit="{clientPid ! RegisterClient(serverPid, clientPid)}">

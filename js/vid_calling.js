@@ -1,14 +1,6 @@
 let localName = '';
 let localID = '';
 
-function _setName() {
-  localName = prompt('name?', '')
-}
-
-function _getLocalName(){
-  return localName;
-}
-
 function _askForYesNo(requestStr){
   if(confirm(requestStr)){
     return "true";
@@ -22,8 +14,6 @@ function _toStr(object) {
   return object;
 }
 
-var getLocalName = LINKS.kify(_getLocalName);
-var setName = LINKS.kify(_setName);
 var askForYesNo = LINKS.kify(_askForYesNo);
 var toString = LINKS.kify(_toStr);
 
