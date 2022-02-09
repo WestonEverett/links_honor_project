@@ -1,0 +1,31 @@
+fun sloop(){
+  sloop()
+}
+
+fun repDoc(){
+  replaceDocument(
+  <html>
+  </html>
+  )
+}
+
+fun mainPage() {
+ page
+  <html>
+    <form l:onsubmit="{repDoc() }">
+      <button type="submit">Quiet Room</button>
+    </form>
+  </html>
+}
+
+fun main() {
+  var serverPid = spawn { sloop() };
+
+  addRoute("/", fun(_) { mainPage() });
+  addStaticRoute("/js", "js", [("js", "text/javascript")]);
+
+  serveWebsockets();
+  servePages()
+}
+
+main()

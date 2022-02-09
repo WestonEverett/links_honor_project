@@ -5,8 +5,6 @@ module JSFFI {
     askForYesNo : (String) ~> (String); #Possible bug, JSFFI issue returning Bool (doesn't recognize)
     getLocalName : () ~> (String);
     toString : (String) ~> (String);
-    getID: () ~> (String);
-    setID: () ~> ();
 
     createOffer: (String) ~> ();
     createAnswer: (String, String) ~> ();
@@ -41,6 +39,19 @@ fun displayLocalVid() {
   JSFFI.playLocalVideo("local_vid")
 }
 
+##sig checkIfIn(a, [a]) -> Bool
+fun checkIfIn(toLookFor, b){
+  switch (b) {
+    case [] -> false
+    case bCur::b ->
+      if(bCur == toLookFor) {
+        true
+      } else {
+        checkIfIn(toLookFor, b)
+      }
+  }
+}
+
 ##WebRTC Functions
 sig waitForAsync : (String) ~> (String)
 fun waitForAsync(foreignID){
@@ -56,19 +67,17 @@ fun waitForAsync(foreignID){
 }
 
 
-fun checkCandidates(serverPid, foreignID) {
+fun checkCandidates(serverPid, foreignID, localID) {
   var candidate = JSFFI.checkForIceCandidates(foreignID);
 
   if (candidate <> "None") {
 
-    var localID = JSFFI.getID();
-
     serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "ice", data = candidate));
 
-    checkCandidates(serverPid, foreignID)
+    checkCandidates(serverPid, foreignID, localID)
   }
   else {
-    checkCandidates(serverPid, foreignID)
+    checkCandidates(serverPid, foreignID, localID)
   }
 }
 
@@ -77,9 +86,9 @@ fun checkCandidates(serverPid, foreignID) {
 ##Message Types:
 ##VidMessage(senderID = id, destID = id, msgType = type, data = data)
 
-fun handleVidMessage(serverPid, msg) {
+fun handleVidMessage(serverPid, myInfo, msg) {
 
-  var localID = JSFFI.getID();
+  var localID = myInfo.clientDesc.clientID;
 
   var destID = msg.destID;
 
@@ -104,7 +113,7 @@ fun handleVidMessage(serverPid, msg) {
         #print(offerStr);
         serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "offer", data = offerStr));
 
-        var iceClient = spawnClient { checkCandidates(serverPid, foreignID) };
+        var iceClient = spawnClient { checkCandidates(serverPid, foreignID, localID) };
 
         #print("I am " ^^ localID ^^ " sending an offer to " ^^ foreignID);
         ()
@@ -119,7 +128,7 @@ fun handleVidMessage(serverPid, msg) {
 
         serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "accept", data = answerStr));
 
-        var iceClient = spawnClient { checkCandidates(serverPid, foreignID) };
+        var iceClient = spawnClient { checkCandidates(serverPid, foreignID, localID) };
 
         #print("I am " ^^ localID ^^ " sending an accept to " ^^ foreignID);
         ()
@@ -144,8 +153,8 @@ fun handleVidMessage(serverPid, msg) {
 }
 
 ##changedInfo = clientInfo record
-#sig moveToRoom : (UserClientRecord) ~> ()
-fun moveToRoom(changedInfoAll){
+#sig moveToRoom : (UserClientRecord, UserClientRecord) ~> ()
+fun moveToRoom(changedInfoAll, myInfo){
 
   var changedInfo = changedInfoAll.clientDesc;
   var audVid = changedInfoAll.audVidMods;
@@ -176,15 +185,15 @@ fun moveToRoom(changedInfoAll){
     else {
       removeNode(node)
     }
-  } else if (clientID <> JSFFI.getID()){
+  } else if (clientID <> myInfo.clientDesc.clientID){
     var nameXML =
       <div id = "{divID}">
         <input type="checkbox" id="{checkID}" name="{checkID}" value="{clientID}"></input>
         <label for="{checkID}">{stringToXml(clientName)}</label>
-        <button type="submit" id="{"mute"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("mute", clientID)}">{stringToXml(if(audVid.mute) "Unmute" else "Mute")}</button>
-        <button type="submit" id="{"deaf"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("deaf", clientID)}">{stringToXml(if(audVid.deaf) "Undeafen" else "Deafen")}</button>
-        <button type="submit" id="{"hid"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("hide", clientID)}">{stringToXml(if(audVid.hid) "Show" else "Hide")}</button>
-        <button type="submit" id="{"blind"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("blind", clientID)}">{stringToXml(if(audVid.blind) "Unblind" else "Blind")}</button>
+        <button type="submit" id="{"mute"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("mute", clientID)}">{stringToXml(if(audVid.mute) "Muted" else "Unmuted")}</button>
+        <button type="submit" id="{"deaf"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("deaf", clientID)}">{stringToXml(if(audVid.deaf) "Deafened" else "Undeafened")}</button>
+        <button type="submit" id="{"hid"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("hide", clientID)}">{stringToXml(if(audVid.hid) "Hidden" else "Shown")}</button>
+        <button type="submit" id="{"blind"^^clientID}" l:onclick="{clientPid ! ChangeAudVid("blind", clientID)}">{stringToXml(if(audVid.blind) "Blinded" else "Unblinded")}</button>
 
       </div>;
 
@@ -227,7 +236,7 @@ fun handleStateUpdate(serverPid, oldOthersInfo, myInfo, changedInfo) {
         print("Sending Init VidMessage to " ^^ changedInfo.clientID)
       } else {};
 
-      moveToRoom(fullChangedInfo);
+      moveToRoom(fullChangedInfo, myInfo);
 
       if(changedInfo.room <> "Exit") {
         [fullChangedInfo]
@@ -247,10 +256,10 @@ fun handleStateUpdate(serverPid, oldOthersInfo, myInfo, changedInfo) {
 fun handleInitialState(clientArr, myInfo) {
 
   var _ = for (c <- clientArr) {
-    moveToRoom(c);
+    moveToRoom(c, myInfo);
     []
   };
-  moveToRoom(myInfo);
+  moveToRoom(myInfo, myInfo);
   ()
 }
 
@@ -288,7 +297,7 @@ fun changeToRoom(myInfo, toRoom, serverPid) {
     var id = myInfo.clientDesc.clientID;
     serverPid ! ChangeRoom(id, toRoom);
     var myNewInfo = (myInfo with clientDesc = (myInfo.clientDesc with room = toRoom));
-    moveToRoom(myNewInfo);
+    moveToRoom(myNewInfo, myNewInfo);
 
     myNewInfo
     } else {myInfo}
@@ -341,19 +350,19 @@ fun dispRoomRequest(msg){
 sig updateAudVid : (UserClientRecord) ~> ()
 fun updateAudVid(info){
   print("updating " ^^info.clientDesc.clientName);
-  var buttonTxt = if(info.audVidMods.mute) "Unmute" else "Mute";
+  var buttonTxt = if(info.audVidMods.mute) "Muted" else "Unmuted";
   domSetPropertyFromRef(getNodeById("mute"^^info.clientDesc.clientID), "innerHTML", buttonTxt);
   JSFFI.setMute(info.clientDesc.clientID, info.audVidMods.mute);
 
-  var buttonTxt = if(info.audVidMods.deaf) "Undeafen" else "Deafen";
+  var buttonTxt = if(info.audVidMods.deaf) "Deafened" else "Undeafened";
   domSetPropertyFromRef(getNodeById("deaf"^^info.clientDesc.clientID), "innerHTML", buttonTxt);
   JSFFI.setDeaf(info.clientDesc.clientID, info.audVidMods.deaf);
 
-  var buttonTxt = if(info.audVidMods.hid) "Show" else "Hide";
+  var buttonTxt = if(info.audVidMods.hid) "Hidden" else "Shown";
   domSetPropertyFromRef(getNodeById("hid"^^info.clientDesc.clientID), "innerHTML", buttonTxt);
   JSFFI.setHide(info.clientDesc.clientID, info.audVidMods.hid);
 
-  var buttonTxt = if(info.audVidMods.blind) "Unblind" else "Blind";
+  var buttonTxt = if(info.audVidMods.blind) "Blinded" else "Unblinded";
   domSetPropertyFromRef(getNodeById("blind"^^info.clientDesc.clientID), "innerHTML", buttonTxt);
   JSFFI.setBlind(info.clientDesc.clientID, info.audVidMods.blind);
   ()
@@ -410,6 +419,13 @@ fun handleGlobalAudVid(demand, othersInfo){
     case "unblindAll" ->
       for (info <- othersInfo) [(info with audVidMods = (info.audVidMods with blind=false))]
 
+    case "whisperTo" ->
+      var checkedIDs = getAllCheckedIDs();
+      for (info <- othersInfo) {
+        if (checkIfIn(info.clientDesc.clientID, checkedIDs)) [(info with audVidMods = (info.audVidMods with deaf=false))]
+        else [(info with audVidMods = (info.audVidMods with deaf=true))]
+      }
+
   };
 
   var _ = for (info <- othersNewInfo){
@@ -433,6 +449,7 @@ fun replaceIntro(serverPid, clientPid){
     <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("unmuteAll")}">Unmute All</button>
     <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("deafenAll")}">Deafen All</button>
     <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("undeafenAll")}">Undeafen All</button>
+    <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("whisperTo")}">Whisper To</button>
     <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("hideAll")}">Hide All</button>
     <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("showAll")}">Show All</button>
     <button type="submit" l:onclick="{clientPid ! GlobalAudVidUpdate("blindAll")}">Blind All</button>
@@ -478,14 +495,12 @@ fun clientRegister(serverPid, clientPid) {
     replaceIntro(serverPid, clientPid);
 
     JSFFI.setName();
-    JSFFI.setID();
 
     var name = JSFFI.getLocalName();
-    var id = JSFFI.getID();
     displayLocalVid();
 
     var defaultAudVids = (mute=false, deaf=false, hid=false, blind=false);
-    var myClientDesc = (clientID = id, clientName = name, room = "0");
+    var myClientDesc = (clientID = "", clientName = name, room = "0");
 
     #sig clientInfo : (UserClientRecord)
     var clientInfo = (clientDesc = myClientDesc, audVidMods = defaultAudVids);
@@ -519,7 +534,7 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
 
         case VidMessage(msg) ->
           print("VidMessage Received from " ^^ JSFFI.toString(msg.senderID));
-          handleVidMessage(serverPid, msg);
+          handleVidMessage(serverPid, myInfo, msg);
           clientLoop(serverPid, othersInfo, myInfo)
 
         case StateUpdate(msg) ->
@@ -527,12 +542,13 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           var othersNewInfo = handleStateUpdate(serverPid, othersInfo, myInfo, msg);
           clientLoop(serverPid, othersNewInfo, myInfo)
 
-        case InitialState(msg) ->
+        case InitialState(msg, myClientDesc) ->
           print("InitialState received");
           var defaultAudVids = (mute = false, deaf = false, hid = false, blind = false);
           var othersNewInfo = for (inf <- msg) [(clientDesc = inf, audVidMods = defaultAudVids)];
-          handleInitialState(othersNewInfo, myInfo);
-          clientLoop(serverPid, othersNewInfo, myInfo)
+          var myNewInfo = (myInfo with clientDesc=myClientDesc);
+          handleInitialState(othersNewInfo, myNewInfo);
+          clientLoop(serverPid, othersNewInfo, myNewInfo)
 
         case RequestRoomChange(msg) ->
           print("Request Received from " ^^ msg.clientID ^^ " for room " ^^ msg.room);
@@ -629,9 +645,11 @@ fun broadcast(clients, msg) server {
 }
 
 # Loops, keeping track of the client PIDs
-fun serverLoop(clients) server {
+fun serverLoop(clients, curID) server {
     receive {
-        case Register(pid, clientInfo) ->
+        case Register(pid, tempClientInfo) ->
+
+            var clientInfo = (tempClientInfo with clientID = intToString(curID));
             var newClients = (pid, clientInfo) :: clients;
 
             # Broadcast a "NewClient" message
@@ -641,11 +659,11 @@ fun serverLoop(clients) server {
               [clientInfo]
             };
 
-            broadcast([(pid, clientInfo)], InitialState(infoToSend));
+            broadcast([(pid, clientInfo)], InitialState(infoToSend, clientInfo));
 
             broadcast(clients, StateUpdate(clientInfo));
 
-            serverLoop(newClients)
+            serverLoop(newClients, curID + 1)
 
         case Send(targetID, msg) ->
 
@@ -657,18 +675,18 @@ fun serverLoop(clients) server {
             };
 
             broadcast(target, msg);
-            serverLoop(clients)
+            serverLoop(clients, curID)
 
         case Broadcast(msg) ->
           broadcast(clients, msg);
-          serverLoop(clients)
+          serverLoop(clients, curID)
 
         case UserExit(leavingClientInfo) ->
           var newClients = for ((pid , clientInfo) <- clients)
             if (leavingClientInfo.clientID == clientInfo.clientID) [] else [(pid, clientInfo)];
 
           broadcast(newClients, StateUpdate(leavingClientInfo));
-          serverLoop(newClients)
+          serverLoop(newClients, curID)
 
         case ChangeRoom(userID, newRoom) ->
 
@@ -702,7 +720,7 @@ fun serverLoop(clients) server {
 
           broadcast(clientsToUpdate, StateUpdate(infoToSend));
 
-          serverLoop(newClients)
+          serverLoop(newClients, curID)
 
     }
 }
@@ -711,7 +729,7 @@ fun serverLoop(clients) server {
 # Main method, run once when the server is started
 fun main() {
     # Spawns a process on the server which keeps track of all clients
-    var serverPid = spawn { serverLoop([]) };
+    var serverPid = spawn { serverLoop([], 0) };
     # Registers the "mainPage" route
     addRoute("/", fun(_) { mainPage(serverPid) });
     addStaticRoute("/js", "js", [("js", "text/javascript")]);

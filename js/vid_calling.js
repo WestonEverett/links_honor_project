@@ -22,20 +22,10 @@ function _toStr(object) {
   return object;
 }
 
-function _setID() {
-  localID = Math.floor((1. + Math.random()) * 10000000).toString().substring(1,9);
-}
-
-function _getID() {
-  return localID;
-}
-
 var getLocalName = LINKS.kify(_getLocalName);
 var setName = LINKS.kify(_setName);
 var askForYesNo = LINKS.kify(_askForYesNo);
 var toString = LINKS.kify(_toStr);
-var setID = LINKS.kify(_setID);
-var getID = LINKS.kify(_getID);
 
 
 var audVidConstraints;
@@ -87,13 +77,13 @@ async function _setInputs(){
   console.log(videoSource);
 
   audVidConstraints = {
-    audio: {deviceId: audioSource ? {exact: audioSource} : undefined},
-    video: {deviceId: videoSource ? {exact: videoSource} : undefined}
+    audio: {deviceId: audioSource ? {exact: audioSource} : false},
+    video: {deviceId: videoSource ? {exact: videoSource} : false}
   };
 
   audVidConstraintsLocal = {
     audio: false,
-    video: {deviceId: videoSource ? {exact: videoSource} : undefined}
+    video: {deviceId: videoSource ? {exact: videoSource} : false}
   };
 
   deviceSet = "set";
