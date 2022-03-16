@@ -51,6 +51,19 @@ fun checkIfIn(toLookFor, b){
   }
 }
 
+##sig checkIfIn(ID, [UserClientRecord]) -> UserClientRecord
+fun findIDIn(toLookFor, b){
+  switch (b) {
+    case [] -> (clientDesc = (clientID = "", clientName = "", room = ""), audVidMods = (mute = true, deaf = true, hid = true, blind = true))
+    case bCur::b ->
+      if(bCur.clientDesc.clientID == toLookFor) {
+        bCur
+      } else {
+        findIDIn(toLookFor, b)
+      }
+  }
+}
+
 ##WebRTC Functions
 sig waitForAsync : (String) ~> (String)
 fun waitForAsync(foreignID){
@@ -517,47 +530,21 @@ fun clientRegister(serverPid, clientPid) {
 
 fun clientLoop(serverPid, othersInfo, myInfo) {
     receive {
-
+        ##From UI - Initialization
         case RegisterClient(serverPid2, clientPid) ->
           print("register self");
-          var myNewInfo = clientRegister(serverPid, clientPid);
-          clientLoop(serverPid, [], myNewInfo)
+          var myNewInfo = clientRegister(serverPid2, clientPid);
+          clientLoop(serverPid2, [], myNewInfo)
 
-
-        case NewClient(msg) ->
-          print("New client registered " ^^ msg.clientID);
-          var newAudVidMod = (mute = false, deaf = false, hid = false, blind = false);
-          var newUser = (clientDesc = msg, audVidMods = newAudVidMod);
-          var othersNewInfo =  if(newUser.clientDesc.clientID <> myInfo.clientDesc.clientID) newUser :: othersInfo else othersInfo;
-          clientLoop(serverPid, othersNewInfo, myInfo)
-
-
-        case VidMessage(msg) ->
-          print("VidMessage Received from " ^^ JSFFI.toString(msg.senderID));
-          handleVidMessage(serverPid, myInfo, msg);
-          clientLoop(serverPid, othersInfo, myInfo)
-
-        case StateUpdate(msg) ->
-          print("StateUpdate Received");
-          var othersNewInfo = handleStateUpdate(serverPid, othersInfo, myInfo, msg);
-          clientLoop(serverPid, othersNewInfo, myInfo)
-
-        case InitialState(msg, myClientDesc) ->
-          print("InitialState received");
-          var defaultAudVids = (mute = false, deaf = false, hid = false, blind = false);
-          var othersNewInfo = for (inf <- msg) [(clientDesc = inf, audVidMods = defaultAudVids)];
-          var myNewInfo = (myInfo with clientDesc=myClientDesc);
-          handleInitialState(othersNewInfo, myNewInfo);
-          clientLoop(serverPid, othersNewInfo, myNewInfo)
-
-        case RequestRoomChange(msg) ->
-          print("Request Received from " ^^ msg.clientID ^^ " for room " ^^ msg.room);
-          dispRoomRequest(msg);
-          clientLoop(serverPid, othersInfo, myInfo)
-
+        ##From UI - midFunction
         case Migrate(event) ->
           print("Migrate Received");
           var myNewInfo = handleMigrate(serverPid, myInfo, event);
+          clientLoop(serverPid, othersInfo, myNewInfo)
+
+        case ChangeRoomByName(roomName) ->
+          print("moving to room " ^^ roomName);
+          var myNewInfo = changeToRoom(myInfo, roomName, serverPid);
           clientLoop(serverPid, othersInfo, myNewInfo)
 
         case ChangeAudVid(effect, clientID) ->
@@ -565,11 +552,6 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           var othersNewInfo = for(info <- othersInfo) if(info.clientDesc.clientID <> clientID) [info] else [handleAudVidChange(effect, info)];
           var myNewInfo = if(myInfo.clientDesc.clientID <> clientID) myInfo else handleAudVidChange(effect, myInfo);
           clientLoop(serverPid, othersNewInfo, myNewInfo)
-
-        case ChangeRoomByName(roomName) ->
-          print("moving to room " ^^ roomName);
-          var myNewInfo = changeToRoom(myInfo, roomName, serverPid);
-          clientLoop(serverPid, othersInfo, myNewInfo)
 
         case GlobalAudVidUpdate(demand) ->
           print(demand);
@@ -581,6 +563,42 @@ fun clientLoop(serverPid, othersInfo, myInfo) {
           var myNewInfo = (myInfo with clientDesc = (myInfo.clientDesc with room = "Exit"));
           serverPid ! UserExit(myNewInfo.clientDesc);
           removeNode(getDocumentNode())
+
+        ##From Server - StateChange
+        case NewClient(msg) ->
+          print("New client registered " ^^ msg.clientID);
+          var newAudVidMod = (mute = false, deaf = false, hid = false, blind = false);
+          var newUser = (clientDesc = msg, audVidMods = newAudVidMod);
+          var othersNewInfo =  if(newUser.clientDesc.clientID <> myInfo.clientDesc.clientID) newUser :: othersInfo else othersInfo;
+          clientLoop(serverPid, othersNewInfo, myInfo)
+
+        case InitialState(msg, myClientDesc) ->
+          print("InitialState received");
+          var defaultAudVids = (mute = false, deaf = false, hid = false, blind = false);
+          var othersNewInfo = for (inf <- msg) [(clientDesc = inf, audVidMods = defaultAudVids)];
+          var myNewInfo = (myInfo with clientDesc=myClientDesc);
+          handleInitialState(othersNewInfo, myNewInfo);
+          clientLoop(serverPid, othersNewInfo, myNewInfo)
+
+        case StateUpdate(msg) ->
+          print("StateUpdate Received");
+          var othersNewInfo = handleStateUpdate(serverPid, othersInfo, myInfo, msg);
+          clientLoop(serverPid, othersNewInfo, myInfo)
+
+        ##From Server - Support
+        case VidMessage(msg) ->
+          print("VidMessage Received from " ^^ JSFFI.toString(msg.senderID));
+          handleVidMessage(serverPid, myInfo, msg);
+          var senderInfo = findIDIn(msg.senderID, othersInfo);
+          updateAudVid(senderInfo);
+          clientLoop(serverPid, othersInfo, myInfo)
+
+        case RequestRoomChange(msg) ->
+          print("Request Received from " ^^ msg.clientID ^^ " for room " ^^ msg.room);
+          dispRoomRequest(msg);
+          clientLoop(serverPid, othersInfo, myInfo)
+
+
     }
 }
 
