@@ -1,0 +1,89 @@
+var branches = 2;
+
+##Client
+
+fun printPos(pos) {
+  print("Current Position: " ^^ intToString(pos) ^^ " Outbound Call: " ^^ intToString(pos/branches));
+  ()
+}
+
+fun clientLoop(serverPid, pos) {
+  receive {
+
+    case RegisterClient(clientPid) ->
+      serverPid ! Register(clientPid);
+      clientLoop(serverPid, pos)
+
+    case SetPosition(newPos) ->
+      printPos(newPos);
+      var newXML = <tr><td>{stringToXml("Current Position: " ^^ intToString(newPos) ^^ " Outbound Call: " ^^ intToString(newPos/2))}</td></tr>;
+      appendChildren(newXML, getNodeById("info"));
+      clientLoop(serverPid, newPos)
+
+    case Exit() ->
+      serverPid ! Exit(pos)
+  }
+}
+
+fun mainPage(serverPid) {
+
+  var clientPid = spawnClient {clientLoop(serverPid, 0)};
+
+  clientPid ! RegisterClient(clientPid);
+
+  page
+    <html>
+      <button type="submit" l:onclick="{clientPid ! Exit()}">Exit</button>
+      <div id = "info">
+      </div>
+    </html>
+}
+
+##Server
+sig setIndex : ([a], Int, a) ~> [a]
+fun setIndex(xs, i, x) {
+  var pre = take(i, xs);
+  var post = drop(i + 1, xs);
+  pre ++ [x] ++ post
+}
+
+fun serverLoop(clients) server {
+
+  receive {
+
+    case Register(pid) ->
+      pid ! SetPosition(length(clients) + 1);
+      var newClients = clients ++ [pid];
+      serverLoop(newClients)
+
+    case Exit(pos) ->
+
+      if(pos == length(clients)) {
+
+        serverLoop(take((length(clients) - 2), clients))
+
+      } else {
+        var inserted = setIndex(clients, pos-1, clients !! (length(clients) - 1));
+        var newClients = take((length(clients)-2), inserted);
+
+        var pid = newClients !! (pos - 1);
+        pid ! SetPosition(pos);
+
+        serverLoop(newClients)
+      }
+  }
+}
+
+fun main() {
+    # Spawns a process on the server which keeps track of all clients
+    var serverPid = spawn { serverLoop([]) };
+    # Registers the "mainPage" route
+    addRoute("/", fun(_) { mainPage(serverPid) });
+    addStaticRoute("/js", "js", [("js", "text/javascript")]);
+    # Starts the server and distribution
+    serveWebsockets();
+    servePages()
+}
+
+
+main()
