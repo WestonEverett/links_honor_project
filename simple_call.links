@@ -1,0 +1,288 @@
+module JSFFI {
+  alien javascript "/js/vid_calling.js" {
+    playLocalVideo : (String) ~> ();
+
+    createOffer: (String) ~> ();
+    createAnswer: (String, String) ~> ();
+    createAccept: (String, String) ~> ();
+    checkAsyncDone: (String) ~> (String);
+    hangup: (String) ~> ();
+    hangupAll: () ~> ();
+
+    showInputs: () ~> ();
+    setInputs: () ~> ();
+
+    checkForIceCandidates: (String) ~> (String);
+    newRemoteCandidate: (String, String) ~> ();
+  }
+}
+
+fun displayLocalVid() {
+  var vidXML = <video id = "local_vid" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
+  appendChildren(vidXML, getNodeById("vids"));
+
+  JSFFI.playLocalVideo("local_vid")
+}
+
+##WebRTC Functions
+sig waitForAsync : (String) ~> (String)
+fun waitForAsync(foreignID){
+
+  var response = JSFFI.checkAsyncDone(foreignID);
+
+  if (response <> "wait") {
+    response
+    }
+    else {
+      waitForAsync(foreignID)
+    }
+}
+
+
+fun checkCandidates(serverPid, foreignID, localID) {
+  var candidate = JSFFI.checkForIceCandidates(foreignID);
+
+  if (candidate <> "None") {
+
+    serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "ice", data = candidate));
+
+    checkCandidates(serverPid, foreignID, localID)
+  }
+  else {
+    checkCandidates(serverPid, foreignID, localID)
+  }
+}
+
+### CLIENT
+
+##Message Types:
+##VidMessage(senderID = id, destID = id, msgType = type, data = data)
+
+fun handleVidMessage(serverPid, myID, msg) {
+
+  var localID = myID;
+
+  var destID = msg.destID;
+
+  var foreignID = msg.senderID;
+
+  var type = msg.msgType;
+
+  #print("I am " ^^ localID ^^ " this is for " ^^ destID ^^ " from " ^^ foreignID);
+
+  if(localID <> destID) {
+    print("I don't think this is for me")
+  }
+  else {
+
+    #print("I think this is for me");
+
+    switch(type) {
+      case "initial" ->
+        #print("This is an initial VidMessage");
+        JSFFI.createOffer(foreignID);
+        var offerStr = waitForAsync(foreignID);
+        #print(offerStr);
+        serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "offer", data = offerStr));
+
+        var iceClient = spawnClient { checkCandidates(serverPid, foreignID, localID) };
+
+        #print("I am " ^^ localID ^^ " sending an offer to " ^^ foreignID);
+        ()
+
+      case "offer" ->
+        #print("This is an offer VidMessage");
+
+        var offerStr = msg.data;
+        JSFFI.createAnswer(foreignID,offerStr);
+
+        var answerStr = waitForAsync(foreignID);
+
+        serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "accept", data = answerStr));
+
+        var iceClient = spawnClient { checkCandidates(serverPid, foreignID, localID) };
+
+        #print("I am " ^^ localID ^^ " sending an accept to " ^^ foreignID);
+        ()
+
+      case "accept" ->
+        #print("This is an accept VidMessage");
+        var answerStr = msg.data;
+        JSFFI.createAccept(foreignID,answerStr);
+
+        var _ = waitForAsync(foreignID);
+
+        #print("I am " ^^ localID ^^ " accepting an offer from " ^^ foreignID);
+        ()
+
+      case "ice" ->
+        #print("This is an ICE VidMessage");
+        var candidate = msg.data;
+        JSFFI.newRemoteCandidate(foreignID,candidate);
+        ()
+    }
+  }
+}
+
+fun replaceIntro(serverPid, clientPid){
+
+  replaceDocument(
+
+  <html>
+
+    <button type="submit" l:onclick="{clientPid ! Exit()}">Exit</button>
+    <div id = "vids"></div>
+
+  </html>
+
+  )
+}
+
+fun clientRegister(serverPid, clientPid) {
+
+    JSFFI.setInputs();
+
+    replaceIntro(serverPid, clientPid);
+
+    displayLocalVid();
+
+    serverPid ! Register(self())
+}
+
+fun clientLoop(serverPid, othersID, myID) {
+    receive {
+
+        case RegisterClient(clientPid) ->
+          print("register self");
+          clientRegister(serverPid, clientPid);
+          clientLoop(serverPid, [], myID)
+
+        case Exit() ->
+          print("Exiting");
+          serverPid ! UserExit(myID)
+
+        ##From Server - StateChange
+        case NewClient(id) ->
+          print("New client registered " ^^ id);
+          var othersNewID =  if(id <> myID) {
+            serverPid ! Send(id, VidMessage(senderID = myID, destID = id, msgType = "initial", data = ""));
+            id :: othersID
+          } else {
+            othersID
+          };
+          clientLoop(serverPid, othersNewID, myID)
+
+        case InitialState(othersNewID, myNewID) ->
+          print("InitialState received");
+          clientLoop(serverPid, othersNewID, myNewID)
+
+        ##From Server - Support
+        case VidMessage(msg) ->
+          print("VidMessage Received from " ^^ msg.senderID);
+          handleVidMessage(serverPid, myID, msg);
+          clientLoop(serverPid, othersID, myID)
+    }
+}
+
+fun clientInit(serverPid){
+
+  JSFFI.showInputs();
+
+  clientLoop(serverPid, [], "")
+}
+
+## Run on the server to generate a page for the client. Spawns a process on the
+## client and generates the HTML.
+
+fun mainPage(serverPid) {
+
+  var clientPid = spawnClient { clientInit(serverPid) };
+
+  page
+  <html>
+    <div class="select">
+      <label for="audioSource">
+        Audio input:
+      </label><select id="audioSource"></select>
+    </div>
+    <div class="select">
+      <label for="videoSource">
+      Video input:
+      </label><select id="videoSource"></select>
+    </div>
+
+    <form l:onsubmit="{clientPid ! RegisterClient(clientPid)}">
+      <button type="submit">Accept</button>
+    </form>
+  </html>
+
+}
+
+### SERVER
+## Sends a message to a list of clients
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case (clientPid,_)::clients ->
+            clientPid ! msg;
+            broadcast(clients, msg)
+    }
+}
+
+# Loops, keeping track of the client PIDs
+fun serverLoop(clients, curID) server {
+    receive {
+        case Register(pid) ->
+
+            var newID = intToString(curID);
+
+            # Broadcast a "NewClient" message
+            broadcast(clients, NewClient(newID));
+
+            var infoToSend = for ((_ , clientID) <- clients){
+              [clientID]
+            };
+
+            broadcast([(pid, newID)], InitialState(infoToSend, newID));
+
+            serverLoop((pid, newID) :: clients, curID + 1)
+
+        case Send(targetID, msg) ->
+
+          var target = for ((pid , clientID) <- clients)
+            if (clientID == targetID) {
+              [(pid , clientID)]
+            } else {
+              []
+            };
+
+            broadcast(target, msg);
+            serverLoop(clients, curID)
+
+        case Broadcast(msg) ->
+          broadcast(clients, msg);
+          serverLoop(clients, curID)
+
+        case UserExit(leavingClientID) ->
+          var newClients = for ((pid , clientID) <- clients)
+            if (clientID == leavingClientID) [] else [(pid, clientID)];
+
+          serverLoop(newClients, curID)
+    }
+}
+
+
+# Main method, run once when the server is started
+fun main() {
+    # Spawns a process on the server which keeps track of all clients
+    var serverPid = spawn { serverLoop([], 0) };
+    # Registers the "mainPage" route
+    addRoute("/", fun(_) { mainPage(serverPid) });
+    addStaticRoute("/js", "js", [("js", "text/javascript")]);
+    # Starts the server and distribution
+    serveWebsockets();
+    servePages()
+}
+
+
+main()
