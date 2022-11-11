@@ -1,0 +1,45 @@
+open import Mvu;
+open import MvuAttrs;
+open import MvuEvents;
+open import MvuHTML;
+
+fun reverseString(str) {
+  implode(reverse(explode(str)))
+}
+
+typename Model = (contents: String);
+typename Message = [| UpdateBox: String |];
+
+fun updt(msg, model) {
+  switch (msg) { case UpdateBox(newStr) -> (contents = newStr) }
+}
+
+var ae = MvuAttrs.empty;
+var he = MvuHTML.empty;
+
+fun view(model) {
+  div(ae,
+    form(ae,
+      input(type("text") +@
+            onKeyUp(fun(str) { UpdateBox(str) }), he)) +*
+      div(ae, textNode(reverseString(model.contents)))
+  )
+}
+
+fun mainPage() {
+  Mvu.runSimple("placeholder", (contents=""), view, updt);
+  page
+    <html><body><div id="placeholder"></div></body></html>
+}
+
+fun main() {
+  addRoute("/", fun(_) { mainPage() });
+  servePages()
+}
+
+main()
+#Mvu.run = fun : (String {name?}, a {initial room?}, (a) ~b~> MvuHTML.HTML (c) {view function}, (c, a) ~b~> (a, MvuCommands.Command (c)) (update function), (a) ~b~> MvuSubscriptions.Sub (c) {subscription collection}, MvuCommands.Command (c) {command process}) ~> ()
+
+#Mvu.runSimple = fun : (String {name?}, a {initial room}, {view func}, {update func}
+
+#Mvu.runStatic = fun : (String {name}, a {initial room}, (a) ~> MvuHTML.HTML {static view}(())) ~> ()

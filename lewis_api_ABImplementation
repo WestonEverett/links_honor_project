@@ -1,0 +1,163 @@
+import WebRTC;
+
+module JSApp {
+  alien javascript "js/app.js" {
+    displayLiveStream : (String) ~> ();
+    displayedPeerStream : (String) ~> Bool;
+    removePeerVideoDiv : (String) ~> ();
+    takePicture : () ~> ();
+    getPictureURL : () ~> String;
+    displayIcon : (String, String, String, String) ~> ();
+    getSelectedOptions : () ~> [String];
+    addPeerToList : (String) ~> ();
+  }
+}
+
+fun replaceIntro(serverPid, clientPid){
+
+  replaceDocument(
+
+  <html>
+
+    <div id = "vids"></div>
+
+  </html>
+
+  )
+}
+
+fun clientRegister(serverPid, clientPid) {
+
+    replaceIntro(serverPid, clientPid);
+
+    WebRTC.gatherDeviceIds("videoinput");
+    WebRTC.gatherDeviceIds("audioinput");
+
+    var camIds = WebRTC.getDeviceIds("videoinput");
+    var camLabels = WebRTC.getDeviceLabels("videoinput");
+    var micIds = WebRTC.getDeviceIds("audioinput");
+    var micLabels = WebRTC.getDeviceLabels("audioinput");
+
+    print(intToString(length(camIds)));
+    print(intToString(length(micIds)));
+
+    var camID = hd(camIds);
+    var micID = hd(micIds);
+
+    WebRTC.readyMediaDevices(camID, micID);
+
+    serverPid ! Register(self())
+}
+
+fun displayCall(id){
+
+  if (WebRTC.checkIfConnectedToPeer(id)) {
+    JSApp.addPeerToList(id);
+    JSApp.displayLiveStream(id);
+    print("Connected?");
+    ()
+  } else {
+    sleep(100);
+    print(id);
+    displayCall(id)
+  }
+
+}
+
+fun clientLoop(serverPid, othersID, myID) {
+    receive {
+
+        case RegisterClient(clientPid) ->
+          print("register self");
+          clientRegister(serverPid, clientPid);
+          clientLoop(serverPid, [], myID)
+
+        ##From Server - StateChange
+        case NewClient(id) ->
+          print("New client registered " ^^ id);
+          var othersNewID =  if(id <> myID) {
+            WebRTC.connectToUser(id);
+            displayCall(id);
+            id :: othersID
+          } else {
+            othersID
+          };
+
+          clientLoop(serverPid, othersNewID, myID)
+
+        case InitialState(othersNewID, myNewID) ->
+          print("InitialState received");
+          WebRTC.registerUser(myNewID);
+          JSApp.displayLiveStream("local");
+          clientLoop(serverPid, othersNewID, myNewID)
+    }
+
+}
+
+fun clientInit(serverPid){
+  clientLoop(serverPid, [], "")
+}
+
+## Run on the server to generate a page for the client. Spawns a process on the
+## client and generates the HTML.
+
+
+### SERVER
+## Sends a message to a list of clients
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case (clientPid,_)::clients ->
+            clientPid ! msg;
+            broadcast(clients, msg)
+    }
+}
+
+# Loops, keeping track of the client PIDs
+fun serverLoop(clients, curID) server {
+    receive {
+        case Register(pid) ->
+
+            var newID = intToString(curID);
+
+            # Broadcast a "NewClient" message
+            broadcast(clients, NewClient(newID));
+
+            var infoToSend = for ((_ , clientID) <- clients){
+              [clientID]
+            };
+
+            broadcast([(pid, newID)], InitialState(infoToSend, newID));
+
+            serverLoop((pid, newID) :: clients, curID + 1)
+    }
+}
+
+fun mainPage(serverPid) {
+
+  var clientPid = spawnClient { clientInit(serverPid) };
+
+  page
+  <html>
+    <form l:onsubmit="{clientPid ! RegisterClient(clientPid)}">
+      <button type="submit">Accept</button>
+    </form>
+  </html>
+
+}
+
+
+# Main method, run once when the server is started
+fun main() {
+    # Spawns a process on the server which keeps track of all clients
+    var serverPid = spawn { serverLoop([], 0) };
+    # Registers the "mainPage" route
+    addRoute("/", fun(_) { mainPage(serverPid) });
+    addStaticRoute("/js", "js", [("js", "text/javascript")]);
+    # Starts the server and distribution
+    serveWebsockets();
+    servePages()
+}
+
+
+main()
