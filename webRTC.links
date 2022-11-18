@@ -1,4 +1,4 @@
-typename Uuid = String;
+typename ID = Int;
 typename Desc = String;
 typename Candidates = String;
 typename OfferOrAnswer = String;
@@ -6,7 +6,7 @@ typename DeviceType = String;
 typename DeviceID = String;
 typename DeviceLabel = String;
 typename MessageType = [| ConnectionRequest | SDP | Ice |];
-typename PCMessage = (uuid : Uuid, dest : String, type : MessageType, sdp : String,
+typename PCMessage = (id : ID, type : MessageType, sdp : String,
                       sdptype : OfferOrAnswer, iceCandidates : Candidates);
 
 module JSWebRTC {
@@ -20,30 +20,44 @@ module JSWebRTC {
         getCameraReady : (DeviceID) ~> ();
         getMicReady : (DeviceID) ~> ();
         createLocalStreamElement : () ~> ();
-        setLocalUuid : () ~> ();
-        setLocalUuidTo : (String) ~> ();
-        getLocalUuid : () ~> Uuid;
-        setUpPC : (Uuid) ~> ();
-        addStreamToPC : (Uuid) ~> ();
-        connectionInitiatedWithPeer : (Uuid) ~> Bool;
-        setLocalDescForPC : (Uuid, OfferOrAnswer) ~> ();
-        checkIfLocalDescSetForPC : (Uuid) ~> Bool;
-        getLocalDescForPC : (Uuid) ~> Desc;
-        setRemoteDescForPC : (Uuid, Desc) ~> ();
-        checkIfRemoteDescSetForPC : (Uuid) ~> Bool;
-        checkIfConnectedToPeer : (Uuid) ~> Bool;
-        checkIfConnectionInitiated : (Uuid) ~> Bool;
-        disconnectFromUser : (Uuid) ~> ();
+        setLocalID : (Int) ~> ();
+        getLocalID : () ~> ID;
+        setUpPC : (ID) ~> ();
+        addStreamToPC : (ID) ~> ();
+        connectionInitiatedWithPeer : (ID) ~> Bool;
+        setLocalDescForPC : (ID, OfferOrAnswer) ~> ();
+        checkIfLocalDescSetForPC : (ID) ~> Bool;
+        getLocalDescForPC : (ID) ~> Desc;
+        setRemoteDescForPC : (ID, Desc) ~> ();
+        checkIfRemoteDescSetForPC : (ID) ~> Bool;
+        checkIfConnectedToPeer : (ID) ~> Bool;
+        checkIfPCObjectExists : (ID) ~> Bool;
+        getBegunIceSearch : () ~> Bool;
+        setBegunIceSearch : () ~> ();
+        disconnectFromUser : (ID) ~> ();
         collectCandidates : () ~> (Candidates);
-        addCandidates : (Candidates, Uuid) ~> ();
+        addCandidates : (Candidates, ID) ~> ();
     }
+}
+
+fun sendMessage(clients, msg, peerID) server {
+  switch (clients) {
+    case [] -> ()
+    case x::xs ->
+      if (first(x) == peerID) {
+        second(x) ! msg;
+        ()
+      } else {
+        sendMessage(xs, msg, peerID)
+      }
+  }
 }
 
 fun broadcast(clients, msg) server {
   switch (clients) {
     case [] -> ()
     case x::xs ->
-      x ! msg;
+      second(x) ! msg;
       broadcast(xs, msg)
   }
 }
@@ -51,8 +65,14 @@ fun broadcast(clients, msg) server {
 fun serverLoop(clients) server {
   receive {
     case Register(pid) ->
-      var newClients = pid :: clients;
+      var numberOfClients = length(clients) + 1;
+      var newClients = (numberOfClients, pid) :: clients;
+      pid ! ID(numberOfClients);
       serverLoop(newClients)
+
+    case Send(msg, peerID) ->
+      sendMessage(clients, Message(msg), peerID);
+      serverLoop(clients)
 
     case Broadcast(msg) ->
       broadcast(clients, Message(msg));
@@ -62,12 +82,20 @@ fun serverLoop(clients) server {
 
 var serverPid = spawn { serverLoop([]) };
 
+fun checkIfConnectedToPeer(peerID) {
+  JSWebRTC.checkIfConnectedToPeer(peerID)
+}
+
+fun checkIfPCObjectExists(peerID) {
+  JSWebRTC.checkIfPCObjectExists(peerID)
+}
+
 fun handleIceCandidates() {
   sleep(500);
   var candidates = JSWebRTC.collectCandidates();
   if (candidates <> "No candidates") {
-    var localUuid = JSWebRTC.getLocalUuid();
-    var message = (uuid=localUuid, dest="all", type=Ice, sdp="_", sdptype="_", iceCandidates=candidates);
+    var localID = JSWebRTC.getLocalID();
+    var message = (id=localID, type=Ice, sdp="_", sdptype="_", iceCandidates=candidates);
     serverPid ! Broadcast(message);
     handleIceCandidates()
   } else {
@@ -75,86 +103,98 @@ fun handleIceCandidates() {
   }
 }
 
-fun waitUntilLocalDescSetForPC(peerUuid) {
-  var bool = JSWebRTC.checkIfLocalDescSetForPC(peerUuid);
-  if (bool)
+fun waitUntilLocalDescSetForPC(peerID) {
+  var bool = JSWebRTC.checkIfLocalDescSetForPC(peerID);
+  if (bool || not(checkIfPCObjectExists(peerID)))
     ()
   else
-    waitUntilLocalDescSetForPC(peerUuid)
+    waitUntilLocalDescSetForPC(peerID)
 }
 
-fun waitUntilRemoteDescSetForPC(peerUuid) {
-  var bool = JSWebRTC.checkIfRemoteDescSetForPC(peerUuid);
-  if (bool)
+fun waitUntilRemoteDescSetForPC(peerID) {
+  var bool = JSWebRTC.checkIfRemoteDescSetForPC(peerID);
+  if (bool || not(checkIfPCObjectExists(peerID)))
     ()
   else
-    waitUntilRemoteDescSetForPC(peerUuid)
+    waitUntilRemoteDescSetForPC(peerID)
 }
 
-fun sendDescriptionForPC(peerUuid, sdpType) {
-  var desc = JSWebRTC.getLocalDescForPC(peerUuid);
-  var localUuid = JSWebRTC.getLocalUuid();
-  var message = (uuid=localUuid, dest=peerUuid, type=SDP, sdp=desc, sdptype=sdpType, iceCandidates="_");
-  serverPid ! Broadcast(message);
-  ()
-}
-
-fun prepareDescriptionForPC(peerUuid, sdpType) {
-  JSWebRTC.setLocalDescForPC(peerUuid, sdpType);
-  waitUntilLocalDescSetForPC(peerUuid)
-}
-
-fun setUpNewPeer(peerUuid, sendOffer) {
-  JSWebRTC.setUpPC(peerUuid);
-  if (sendOffer) {
-    prepareDescriptionForPC(peerUuid, "offer");
-    sendDescriptionForPC(peerUuid, "offer")
+fun sendDescriptionForPC(peerID, sdpType) {
+  if (checkIfPCObjectExists(peerID)) {
+    var desc = JSWebRTC.getLocalDescForPC(peerID);
+    var localID = JSWebRTC.getLocalID();
+    var message = (id=localID, type=SDP, sdp=desc, sdptype=sdpType, iceCandidates="_");
+    serverPid ! Send(message, peerID);
+    ()
   } else {
     ()
   }
 }
 
-fun handleOfferForPC(peerUuid, remoteDesc) {
-  JSWebRTC.setRemoteDescForPC(peerUuid, remoteDesc);
-  waitUntilRemoteDescSetForPC(peerUuid);
-  prepareDescriptionForPC(peerUuid, "answer");
-  sendDescriptionForPC(peerUuid, "answer")
+fun prepareDescriptionForPC(peerID, sdpType) {
+  if (checkIfPCObjectExists(peerID)) {
+    JSWebRTC.setLocalDescForPC(peerID, sdpType);
+    waitUntilLocalDescSetForPC(peerID)
+  } else {
+    ()
+  }
 }
 
-fun checkIfConnectedToPeer(peerUuid) {
-  JSWebRTC.checkIfConnectedToPeer(peerUuid)
+fun setUpNewPeer(peerID, sendOffer) {
+  JSWebRTC.setUpPC(peerID);
+  if (checkIfPCObjectExists(peerID) && sendOffer) {
+    prepareDescriptionForPC(peerID, "offer");
+    sendDescriptionForPC(peerID, "offer")
+  } else {
+    ()
+  }
 }
 
-fun checkIfConnectionInitiated(peerUuid) {
-  JSWebRTC.checkIfConnectionInitiated(peerUuid)
+fun handleOfferForPC(peerID, remoteDesc) {
+  if (checkIfPCObjectExists(peerID)) {
+    JSWebRTC.setRemoteDescForPC(peerID, remoteDesc);
+    waitUntilRemoteDescSetForPC(peerID);
+    prepareDescriptionForPC(peerID, "answer");
+    sendDescriptionForPC(peerID, "answer")
+  } else {
+    ()
+  }
 }
 
 fun handleMessage(msg) {
-  var localUuid = JSWebRTC.getLocalUuid();
-  var peerUuid = msg.uuid;
-  var destUuid = msg.dest;
-  if (peerUuid == localUuid || (msg.dest <> localUuid && msg.dest <> "all")) {
-    ()
-  } else {
-    switch (msg.type) {
-      case ConnectionRequest ->
-        if (not(checkIfConnectedToPeer(peerUuid))) {
-          setUpNewPeer(peerUuid, true);
+  var localID = JSWebRTC.getLocalID();
+  var peerID = msg.id;
+  switch (msg.type) {
+    case ConnectionRequest ->
+      if (not(checkIfPCObjectExists(peerID))) {
+        setUpNewPeer(peerID, true);
+        var begunIceSearch = JSWebRTC.getBegunIceSearch();
+        if (begunIceSearch == false) {
           var iceId2 = spawnClient { handleIceCandidates() };
           ()
         } else {
           ()
         }
-      case SDP ->
-        if (msg.sdptype == "offer") {
-          handleOfferForPC(peerUuid, msg.sdp)
-        } else {
-          JSWebRTC.setRemoteDescForPC(peerUuid, msg.sdp);
-          waitUntilRemoteDescSetForPC(peerUuid)
-        }
-      case Ice ->
-        JSWebRTC.addCandidates(msg.iceCandidates, peerUuid)
-    }
+      } else if (localID > peerID) {
+        prepareDescriptionForPC(peerID, "offer");
+        sendDescriptionForPC(peerID, "offer");
+        ()
+      } else {
+        ()
+      }
+    case SDP ->
+      if (msg.sdptype == "offer") {
+        handleOfferForPC(peerID, msg.sdp)
+      } else {
+        JSWebRTC.setRemoteDescForPC(peerID, msg.sdp);
+        waitUntilRemoteDescSetForPC(peerID)
+      }
+    case Ice ->
+      if (peerID <> localID) {
+        JSWebRTC.addCandidates(msg.iceCandidates, peerID)
+      } else {
+        ()
+      }
   }
 }
 
@@ -209,38 +249,50 @@ fun clientLoop() {
     case Message(msg) ->
       handleMessage(msg);
       clientLoop()
+    case ID(id) ->
+      JSWebRTC.setLocalID(id);
+      clientLoop()
   }
 }
 
-fun clientRegister(id) {
-  JSWebRTC.setLocalUuidTo(id);
+fun clientRegister() {
   serverPid ! Register(self());
   clientLoop()
 }
 
-fun connectToUser(peerUuid) {
-  if (not(checkIfConnectedToPeer(peerUuid))) {
-    setUpNewPeer(peerUuid, false);
-    var iceId = spawnClient { handleIceCandidates() };
-    var localUuid = JSWebRTC.getLocalUuid();
-    var message = (uuid=localUuid, dest=peerUuid, type=ConnectionRequest, sdp="_", sdptype="_", iceCandidates="_");
-    serverPid ! Broadcast(message);
-    ()
+fun connectToUser(peerID) {
+  if (not(checkIfConnectedToPeer(peerID))) {
+    setUpNewPeer(peerID, false);
+    var localID = JSWebRTC.getLocalID();
+    var begunIceSearch = JSWebRTC.getBegunIceSearch();
+    if (begunIceSearch == false) {
+      JSWebRTC.setBegunIceSearch();
+      var iceId = spawnClient { handleIceCandidates() };
+      var message = (id=localID, type=ConnectionRequest, sdp="_", sdptype="_", iceCandidates="_");
+      serverPid ! Send(message, peerID);
+      ()
+    } else {
+      var message = (id=localID, type=ConnectionRequest, sdp="_", sdptype="_", iceCandidates="_");
+      serverPid ! Send(message, peerID);
+      ()
+    }
   } else {
     ()
   }
 }
 
-fun disconnectFromUser(peerUuid) {
-  JSWebRTC.disconnectFromUser(peerUuid)
+fun disconnectFromUser(peerID) {
+  JSWebRTC.disconnectFromUser(peerID)
 }
 
-fun getUUID() {
-  JSWebRTC.getLocalUuid()
+fun getID() {
+  var id = JSWebRTC.getLocalID();
+  print(intToString(id));
+  id
 }
 
-fun registerUser(id) {
-  var clientPid = spawnClient { clientRegister(id) };
+fun registerUser() {
+  var clientPid = spawnClient { clientRegister() };
   ()
 }
 

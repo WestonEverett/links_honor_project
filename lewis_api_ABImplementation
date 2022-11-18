@@ -1,15 +1,17 @@
 import WebRTC;
 
+typename ID = Int;
+
 module JSApp {
   alien javascript "js/app.js" {
-    displayLiveStream : (String) ~> ();
-    displayedPeerStream : (String) ~> Bool;
-    removePeerVideoDiv : (String) ~> ();
+    displayLiveStream : (ID) ~> ();
+    displayedPeerStream : (ID) ~> Bool;
+    removePeerVideoDiv : (ID) ~> ();
     takePicture : () ~> ();
     getPictureURL : () ~> String;
     displayIcon : (String, String, String, String) ~> ();
     getSelectedOptions : () ~> [String];
-    addPeerToList : (String) ~> ();
+    addPeerToList : (ID) ~> ();
   }
 }
 
@@ -58,7 +60,7 @@ fun displayCall(id){
     ()
   } else {
     sleep(100);
-    print(id);
+    print(intToString(id));
     displayCall(id)
   }
 
@@ -73,11 +75,17 @@ fun clientLoop(serverPid, othersID, myID) {
           clientLoop(serverPid, [], myID)
 
         ##From Server - StateChange
+        case IncomingCall(id) ->
+          displayCall(id);
+          clientLoop(serverPid, othersID, myID)
+
+
         case NewClient(id) ->
-          print("New client registered " ^^ id);
+          print("New client registered " ^^ intToString(id));
           var othersNewID =  if(id <> myID) {
             WebRTC.connectToUser(id);
             displayCall(id);
+            serverPid ! Send(id, IncomingCall(myID));
             id :: othersID
           } else {
             othersID
@@ -87,15 +95,15 @@ fun clientLoop(serverPid, othersID, myID) {
 
         case InitialState(othersNewID, myNewID) ->
           print("InitialState received");
-          WebRTC.registerUser(myNewID);
-          JSApp.displayLiveStream("local");
+          WebRTC.registerUser();
+          JSApp.displayLiveStream(myID);
           clientLoop(serverPid, othersNewID, myNewID)
     }
 
 }
 
 fun clientInit(serverPid){
-  clientLoop(serverPid, [], "")
+  clientLoop(serverPid, [], 0)
 }
 
 ## Run on the server to generate a page for the client. Spawns a process on the
@@ -118,10 +126,7 @@ fun serverLoop(clients, curID) server {
     receive {
         case Register(pid) ->
 
-            var newID = intToString(curID);
-
-            # Broadcast a "NewClient" message
-            broadcast(clients, NewClient(newID));
+            var newID = curID;
 
             var infoToSend = for ((_ , clientID) <- clients){
               [clientID]
@@ -129,7 +134,22 @@ fun serverLoop(clients, curID) server {
 
             broadcast([(pid, newID)], InitialState(infoToSend, newID));
 
+            # Broadcast a "NewClient" message
+            broadcast(clients, NewClient(newID));
+
             serverLoop((pid, newID) :: clients, curID + 1)
+
+        case Send(targetID, msg) ->
+
+            var target = for ((pid , clientID) <- clients)
+              if (clientID == targetID) {
+                [(pid , clientID)]
+              } else {
+                []
+              };
+
+            broadcast(target, msg);
+            serverLoop(clients, curID)
     }
 }
 

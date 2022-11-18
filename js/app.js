@@ -29,9 +29,9 @@ function appendVidToDiv(id, local) {
 }
 
 function _displayLiveStream(id) {
-  if (id == "local" && !document.getElementById('localVideoDiv')) {
+  if (id == 0 && !document.getElementById('localVideoDiv')) {
     appendVidToDiv('localVideo', true);
-  } else if (id != "local" && !document.getElementById('remoteVideo_' + id + 'Div')){
+  } else if (id != 0 && !document.getElementById('remoteVideo_' + id + 'Div')){
     if (document.getElementById('remoteVideo_' + id + 'Temp')) {
       appendVidToDiv('remoteVideo_' + id, false);
     }
@@ -48,10 +48,13 @@ function _displayedPeerStream(id) {
 
 function _removePeerVideoDiv(peerUuid) {
   let div = document.getElementById('remoteVideo_' + peerUuid + 'Div');
+  let div2 = document.getElementById('remoteVideo_' + peerUuid + 'Temp');
   if (div) {
     document.body.removeChild(div);
     delete peerUuids[peerUuid];
     arrangeVideoDivs();
+  } else if (div2) {
+    document.body.removeChild(div2);
   }
 }
 

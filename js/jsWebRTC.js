@@ -7,7 +7,7 @@ let peerConnectionConfig = {
   ]
 };
 
-let localUuid = "";
+let localID = "";
 let localVideoTrack;
 let localAudioTrack;
 let localVideoTrackLoaded = false;
@@ -18,6 +18,7 @@ let cameraLabels = null;
 let micLabels = null;
 let gotCameraDevices = false;
 let gotMicDevices = false;
+let begunIceSearch = false;
 
 function cons(x, xs) { return {_head: x, _tail: xs}}
 
@@ -116,7 +117,7 @@ function _setUpPC(peerUuid) {
                               'audioTrack': null
                             };
   peerConnections[peerUuid].pc.onicecandidate = event => {
-    if (event.candidate != null) {
+    if (peerConnections[peerUuid] && event.candidate != null) {
       peerConnections[peerUuid].iceCandidates.push(event.candidate);
     }
   }
@@ -139,15 +140,20 @@ function _connectionInitiatedWithPeer(peerUuid) {
 }
 
 function _setLocalDescForPC(peerUuid, sdpType) {
+  if (!peerConnections[peerUuid]) return;
   if (sdpType == "offer") {
     peerConnections[peerUuid].pc.createOffer().then(function(description) {
+      if (!peerConnections[peerUuid]) return;
       peerConnections[peerUuid].pc.setLocalDescription(description).then(() => {
+        if (!peerConnections[peerUuid]) return;
         peerConnections[peerUuid].localDescSet = true;
       });
     });
   } else {
     peerConnections[peerUuid].pc.createAnswer().then(function(description) {
+      if (!peerConnections[peerUuid]) return;
       peerConnections[peerUuid].pc.setLocalDescription(description).then(() => {
+        if (!peerConnections[peerUuid]) return;
         peerConnections[peerUuid].localDescSet = true;
       });
     });
@@ -155,29 +161,33 @@ function _setLocalDescForPC(peerUuid, sdpType) {
 }
 
 function _setRemoteDescForPC(peerUuid, desc) {
-  console.log('Set remote desc!');
+  if (!peerConnections[peerUuid]) return;
   let sdpObj = JSON.parse(desc);
   let rtcDesc = new RTCSessionDescription(sdpObj.sdp);
   peerConnections[peerUuid].pc.setRemoteDescription(rtcDesc).then(function() {
+    if (!peerConnections[peerUuid]) return;
     peerConnections[peerUuid].remoteDescSet = true;
   });
 }
 
 function _checkIfLocalDescSetForPC(peerUuid) {
-  return peerConnections[peerUuid].localDescSet;
+  return !!peerConnections[peerUuid] ? peerConnections[peerUuid].localDescSet : false;
 }
 
 function _checkIfRemoteDescSetForPC(peerUuid) {
-  return peerConnections[peerUuid].remoteDescSet;
+  return !!peerConnections[peerUuid] ? peerConnections[peerUuid].remoteDescSet : false;
 }
 
 function _getLocalDescForPC(peerUuid) {
-  return JSON.stringify({'sdp': peerConnections[peerUuid].pc.localDescription});
+  if (peerConnections[peerUuid]) {
+    return JSON.stringify({'sdp': peerConnections[peerUuid].pc.localDescription});
+  }
+  return "_";
 }
 
 function gotRemoteTrack(event, peerUuid) {
   let track = event.track;
-  if (!document.getElementById('remoteVideoTemp_' + peerUuid)) {
+  if (peerConnections[peerUuid] && !document.getElementById('remoteVideo_' + peerUuid + 'Temp')) {
     if (track.kind == "video") {
       peerConnections[peerUuid].videoTrack = track;
     } else {
@@ -195,27 +205,32 @@ function gotRemoteTrack(event, peerUuid) {
 }
 
 function checkPeerStateChange(event, peerUuid) {
-  if (!peerConnections[peerUuid]) return;
-  let state = peerConnections[peerUuid].pc.iceConnectionState;
-  console.log(`connection with peer, ${peerUuid} ${state}`);
-  if (state == "failed" || state == "closed" || state == "disconnected") {
-    delete peerConnections[peerUuid];
+  if (peerConnections[peerUuid]) {
+    let state = peerConnections[peerUuid].pc.iceConnectionState;
+    console.log(`connection with peer, ${peerUuid} ${state}`);
+    if (state == "failed" || state == "closed" || state == "disconnected") {
+      delete peerConnections[peerUuid];
+    }
   }
 }
 
 function _checkIfConnectedToPeer(peerUuid) {
   if (peerConnections[peerUuid]) {
     let state = peerConnections[peerUuid].pc.iceConnectionState;
-    if (state == "connected") return true;
+    return state == "connected" ? true : false;
   }
-  return false;
 }
 
-function _checkIfConnectionInitiated(peerUuid) {
-  if (peerConnections[peerUuid]) {
-    return true;
-  }
-  return false;
+function _checkIfPCObjectExists(peerUuid) {
+  return !!peerConnections[peerUuid];
+}
+
+function _getBegunIceSearch() {
+  return begunIceSearch;
+}
+
+function _setBegunIceSearch() {
+  begunIceSearch = true;
 }
 
 function _disconnectFromUser(peerUuid) {
@@ -243,9 +258,10 @@ function _collectCandidates() {
 }
 
 function _addCandidates(candidates, peerUuid) {
+  if (!peerConnections[peerUuid]) return;
   let iceCandidates = JSON.parse(candidates);
   for (const uuid in iceCandidates) {
-    if (uuid == localUuid) {
+    if (uuid == localID) {
       let iceList = iceCandidates[uuid];
       for (let i = 0; i < iceList.length; i++) {
         let newIce = new RTCIceCandidate(iceList[i]);
@@ -255,24 +271,21 @@ function _addCandidates(candidates, peerUuid) {
   }
 }
 
-function _setLocalUuid() {
+function _setLocalID(id) {
+  /*
   function s4() {
     return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
   }
 
   localUuid = s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
+  */
+  localID = id;
 }
 
-function _setLocalUuidTo(id) {
-
-  localUuid = id;
+function _getLocalID() {
+  return localID;
 }
 
-function _getLocalUuid() {
-  return localUuid;
-}
-
-let setLocalUuidTo = LINKS.kify(_setLocalUuidTo);
 let gatherMediaDeviceIds = LINKS.kify(_gatherMediaDeviceIds);
 let checkDevicesGathered = LINKS.kify(_checkDevicesGathered);
 let getMediaDeviceIds = LINKS.kify(_getMediaDeviceIds);
@@ -282,8 +295,8 @@ let checkIfMicLoaded = LINKS.kify(_checkIfMicLoaded);
 let getCameraReady = LINKS.kify(_getCameraReady);
 let getMicReady = LINKS.kify(_getMicReady);
 let createLocalStreamElement = LINKS.kify(_createLocalStreamElement);
-let setLocalUuid = LINKS.kify(_setLocalUuid);
-let getLocalUuid = LINKS.kify(_getLocalUuid);
+let setLocalID = LINKS.kify(_setLocalID);
+let getLocalID = LINKS.kify(_getLocalID);
 let setUpPC = LINKS.kify(_setUpPC);
 let connectionInitiatedWithPeer = LINKS.kify(_connectionInitiatedWithPeer);
 let setLocalDescForPC = LINKS.kify(_setLocalDescForPC);
@@ -292,7 +305,9 @@ let getLocalDescForPC = LINKS.kify(_getLocalDescForPC);
 let setRemoteDescForPC = LINKS.kify(_setRemoteDescForPC);
 let checkIfRemoteDescSetForPC = LINKS.kify(_checkIfRemoteDescSetForPC);
 let checkIfConnectedToPeer = LINKS.kify(_checkIfConnectedToPeer);
-let checkIfConnectionInitiated = LINKS.kify(_checkIfConnectionInitiated);
+let checkIfPCObjectExists= LINKS.kify(_checkIfPCObjectExists);
+let getBegunIceSearch = LINKS.kify(_getBegunIceSearch);
+let setBegunIceSearch = LINKS.kify(_setBegunIceSearch);
 let disconnectFromUser = LINKS.kify(_disconnectFromUser);
 let collectCandidates = LINKS.kify(_collectCandidates);
 let addCandidates = LINKS.kify(_addCandidates);

@@ -1,0 +1,140 @@
+open import MvuHTML;
+open import MvuAttrs;
+open import MvuEvents;
+open import MvuSubscriptions;
+import Mvu;
+import MvuCommands;
+import WebRTC;
+
+typename ID = Int;
+
+module JSApp {
+  alien javascript "js/app.js" {
+    displayLiveStream : (ID) ~> ();
+    displayedPeerStream : (ID) ~> Bool;
+    removePeerVideoDiv : (ID) ~> ();
+    takePicture : () ~> ();
+    getPictureURL : () ~> String;
+    displayIcon : (ID, String, String, String) ~> ();
+    getSelectedOptions : () ~> [String];
+    addPeerToList : (ID) ~> ();
+  }
+}
+
+#broacasts message to all clients on server
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case x::xs ->
+            x.pid ! msg;
+            broadcast(xs, msg)
+    }
+}
+
+#waits for message, sends message to call clients on server
+fun serverLoop(clients) server {
+    receive {
+        case Register(initclient) ->
+          var newClients = initclient :: clients;
+          broadcast(clients, NewUser(initclient.id));
+          var ids = for(c <- clients) [c.id];
+          broadcast([initclient], InitialState(ids));
+          serverLoop(newClients)
+
+        case BroadcastMessage(msg) ->
+          broadcast(clients, msg);
+          serverLoop(clients)
+    }
+}
+
+var serverPid = spawn { serverLoop([]) };
+
+fun confirmConnection(id) {
+  if (WebRTC.checkIfConnectedToPeer(id)) {
+    JSApp.addPeerToList(id);
+    JSApp.displayLiveStream(id);
+    print("Connection Confirmed")
+  } else if (not(WebRTC.checkIfPCObjectExists(id))){
+    print("Connection doesn't even exist anymore, silly")
+  } else {
+    confirmConnection(id)
+  }
+}
+
+fun connectToPeer(id) {
+  print("Calling connectToUser, id: " ^^ (intToString(id)));
+  WebRTC.connectToUser(id);
+  confirmConnection(id)
+}
+
+fun connectToPeers(ids) {
+  switch(ids) {
+    case [] -> ()
+    case x::xs ->
+      if (WebRTC.checkIfPCObjectExists(x) == false) {
+        var connId = spawnClient { connectToPeer(x) };
+        print(intToString(x));
+        connectToPeers(xs)
+      } else {
+        connectToPeers(xs)
+      }
+  }
+}
+
+fun clientLoop() {
+    receive {
+      case NewUser(id) ->
+        print(intToString(id));
+        connectToPeers([id]);
+        clientLoop()
+
+      case InitialState(ids) ->
+        connectToPeers(ids);
+        clientLoop()
+    }
+}
+
+fun waitForID() {
+  var id = WebRTC.getID();
+  if("" <> intToString(id)) {
+    id
+  } else {
+    print("waiting");
+    sleep(100);
+    waitForID()
+  }
+}
+
+#begins webRTC connection and registers client with server
+fun clientRegister() {
+  WebRTC.gatherDeviceIds("videoinput");
+  WebRTC.gatherDeviceIds("audioinput");
+  var vid_id = hd(WebRTC.getDeviceIds("videoinput"));
+  var mic_id = hd(WebRTC.getDeviceIds("audioinput"));
+  print(vid_id);
+  print(mic_id);
+  WebRTC.readyMediaDevices(vid_id, mic_id);
+  WebRTC.registerUser();
+
+  print(intToString(waitForID()));
+  serverPid ! Register((pid=self(), id=WebRTC.getID()));
+  clientLoop()
+}
+
+fun mainPage(serverPid) {
+  var clientPid = spawnClient { clientRegister() };
+  page
+  <html>
+    <div id="videos"></div>
+  </html>
+}
+
+fun main() {
+  addRoute("/", fun(_) { mainPage(serverPid) });
+  addStaticRoute("/css", "css", [("css", "text/css")]);
+  addStaticRoute("/js", "js", [("js", "text/javascript")]);
+  serveWebsockets();
+  servePages()
+}
+
+main()
