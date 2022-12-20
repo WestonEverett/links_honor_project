@@ -1,0 +1,88 @@
+##CallClient
+fun callClientLoop(serverPid) {
+  receive {
+
+    case RegisterClient(myID) ->
+      print("CallClient received ID" ^^ intToString(myID));
+      callClientLoop(serverPid)
+  }
+}
+
+fun startClient(serverPid) {
+
+  var clientPid = spawnClient {callClientLoop(serverPid)};
+
+  ##clientPid ! Echo(self());
+
+  ##receive {
+  ##  case Echo() ->
+  ##    var continue = 1;
+  ##}
+
+  serverPid ! Register(self(), clientPid);
+
+  receive {
+    case ID(providedID) ->
+      providedID
+
+    case NewCallClient() ->
+      print("also confused");
+      42
+  }
+}
+
+##Client
+
+fun clientLoop(serverPid) {
+  receive {
+
+    case NewCallClient() ->
+      print("new Call Client");
+      var id = startClient(serverPid);
+      print("Call Client with ID: " ^^ intToString(id) ^^ " created");
+      clientLoop(serverPid)
+
+    case ID(id) ->
+      print("confused")
+  }
+}
+
+fun mainPage(serverPid) {
+
+  var clientPid = spawnClient {clientLoop(serverPid)};
+
+  page
+    <html>
+      <button type="submit" l:onclick="{clientPid ! NewCallClient()}">Produce Client</button>
+      <div id = "info">
+      </div>
+    </html>
+}
+
+##Server
+
+fun serverLoop(clients) server {
+
+  receive {
+
+    case Register(callerPid, clientPid) ->
+      var newID = length(clients) + 1;
+      callerPid ! ID(newID);
+      clientPid ! RegisterClient(newID);
+      var newClients = clients ++ [(clientPid, newID)];
+      serverLoop(newClients)
+    }
+}
+
+fun main() {
+    # Spawns a process on the server which keeps track of all clients
+    var serverPid = spawn { serverLoop([]) };
+    # Registers the "mainPage" route
+    addRoute("/", fun(_) { mainPage(serverPid) });
+    # Starts the server and distribution
+    serveWebsockets();
+    servePages()
+}
+
+
+main()

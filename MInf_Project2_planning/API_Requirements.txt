@@ -1,0 +1,28 @@
+Basic User-Side Requirements:
+
+  Able to reliably make calls, sending and recieving audio, video, both, or neither
+
+  Able to set location call is written to (HTML Video?), and the source of the video/audio
+
+  Calls should be modifiable live:
+    - Mute/Deafen/etc call manipulation, disabling audio/video feed
+    - Volume scaling?
+
+  Able to hangup and recall others easily
+
+Potential User-Side Extensions:
+
+  Both a default call write location and a per-call write location (so specific calls with the same client can be written to different locations)
+
+  Multiple Call Clients for the same overall Client (call same person multiple times, call self, etc)
+
+  Potential screensharing, arbitrary data sending
+
+Basic Functional Requirements:
+
+  Each CallClient must have a unique ID accessible by the client for identification (and cross-client identification)
+
+  A Server Process that associates the unique IDs with the relevant IDs and passes calling-related communication between them
+
+  Internally:
+    A reimplementation of a similar system to the one last year (making use of WebRTC/Javascript)
