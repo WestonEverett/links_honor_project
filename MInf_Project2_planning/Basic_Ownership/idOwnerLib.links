@@ -1,0 +1,87 @@
+##Server
+
+fun isIn(y, xs) server {
+  switch (xs) {
+    case [] -> false
+    case z :: zs ->
+      print("Splitting?");
+      if (y == z) {
+        true
+      } else {
+        isIn(y, zs)
+      }
+  }
+}
+
+fun serverLoop(clients) server {
+
+  receive {
+
+    case Register(callerPid, clientPid) ->
+      var newID = length(clients) + 1;
+      callerPid ! ID(newID);
+      clientPid ! RegisterClient(newID);
+      var newClients = clients ++ [(callerPid, clientPid, newID)];
+      serverLoop(newClients)
+
+
+    case CheckOwnership(callerPid, id) ->
+      print("Received");
+      print(intToString(length(clients)));
+      var ownedIDs = for ((ownerPid , clientPid, curId) <- clients) {
+        curId
+      };
+
+      var idOwned = isIn(id, ownedIDs);
+
+      callerPid ! IDOwned(idOwned);
+      serverLoop(clients)
+    }
+}
+
+##CallClient
+fun callClientLoop() {
+  receive {
+
+    case RegisterClient(myID) ->
+      print("CallClient received ID: " ^^ intToString(myID));
+      callClientLoop()
+  }
+}
+
+var serverPid = spawn { serverLoop([]) };
+
+fun startClient() {
+
+  var clientPid = spawnClient {callClientLoop()};
+
+  spawnWait {
+    serverPid ! Register(self(), clientPid);
+    receive {
+      case ID(id) -> id
+
+      case IDOwned(a) ->
+        print("Error");
+        -1
+    }
+  }
+}
+
+fun checkID(id) {
+  print("Checking ID... " ^^ intToString(id));
+  var hasID = spawnWait {
+    serverPid ! CheckOwnership(self(), id);
+    receive {
+        case IDOwned(hasID) ->
+          print("Received Response");
+          hasID
+
+        case ID(id) ->
+          print("Error");
+          false
+      }
+    };
+
+  print("Made it to the end");
+  hasID
+}

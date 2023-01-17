@@ -1,0 +1,49 @@
+import IdOwnerLib;
+
+##Client
+
+fun clientLoop() {
+  receive {
+
+    case NewCallClient() ->
+      print("new Call Client");
+      var id = IdOwnerLib.startClient();
+      print("Call Client with ID: " ^^ intToString(id) ^^ " created");
+      clientLoop()
+
+    case CheckID(id) ->
+      var hasID = IdOwnerLib.checkID(id);
+      if (hasID) {
+        print("Has " ^^ intToString(id))
+      } else {
+        print("Doesn't Have " ^^ intToString(id))
+      };
+      clientLoop()
+  }
+}
+
+fun mainPage() {
+
+  var clientPid = spawnClient {clientLoop()};
+
+  page
+    <html>
+      <button type="submit" l:onclick="{clientPid ! NewCallClient()}">Produce Client</button>
+      <button type="submit" l:onclick="{clientPid ! CheckID(1)}">Check 1</button>
+      <button type="submit" l:onclick="{clientPid ! CheckID(2)}">Check 2</button>
+      <div id = "info">
+      </div>
+    </html>
+}
+
+fun main() {
+    # Spawns a process on the server which keeps track of all clients
+    # Registers the "mainPage" route
+    addRoute("/", fun(_) { mainPage() });
+    # Starts the server and distribution
+    serveWebsockets();
+    servePages()
+}
+
+
+main()

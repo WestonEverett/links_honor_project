@@ -1,0 +1,33 @@
+##Server
+
+fun serverLoop(clients) server {
+
+  receive {
+
+    case Register(callerPid, clientPid) ->
+      var newID = length(clients) + 1;
+      callerPid ! ID(newID);
+      clientPid ! RegisterClient(newID);
+      var newClients = clients ++ [(clientPid, newID)];
+      serverLoop(newClients)
+    }
+}
+
+##CallClient
+fun callClientLoop() {
+  receive {
+
+    case RegisterClient(myID) ->
+      print("CallClient received ID: " ^^ intToString(myID));
+      callClientLoop()
+  }
+}
+
+var serverPid = spawn { serverLoop([]) };
+
+fun startClient() {
+
+  var clientPid = spawnClient {callClientLoop()};
+
+  spawnWait {serverPid ! Register(self(), clientPid); receive {case ID(id) -> id}}
+}
