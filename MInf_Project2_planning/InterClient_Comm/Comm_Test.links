@@ -1,0 +1,47 @@
+import CommTestLib;
+
+##Client
+
+fun clientLoop() {
+  receive {
+
+    case NewCallClient() ->
+      print("new Call Client");
+      var id = CommTestLib.startClient();
+      print("Call Client with ID: " ^^ id ^^ " created");
+      clientLoop()
+  }
+}
+
+fun prepClient() {
+  CommTestLib.setInputs();
+  ##CommTestLib.playLocalVid();
+  clientLoop()
+}
+
+fun mainPage() {
+
+  var clientPid = spawnClient {prepClient()};
+
+  page
+    <html>
+      <button type="submit" l:onclick="{clientPid ! NewCallClient()}">Produce Client</button>
+      <button type="submit" l:onclick="{CommTestLib.callClient("0","1")}">Call Client 1 from 0</button>
+      <div id = "info">
+      </div>
+      <div id = "vids"></div>
+    </html>
+}
+
+fun main() {
+    # Spawns a process on the server which keeps track of all clients
+    # Registers the "mainPage" route
+    addStaticRoute("/js", "js", [("js", "text/javascript")]);
+    addRoute("/", fun(_) { mainPage() });
+    # Starts the server and distribution
+    serveWebsockets();
+    servePages()
+}
+
+
+main()

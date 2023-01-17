@@ -1,0 +1,185 @@
+##Server
+
+module JSFFI {
+  alien javascript "/js/vid_calling2.js" {
+    playLocalVideo : (String) ~> ();
+
+    createOffer: (String) ~> ();
+    createAnswer: (String, String) ~> ();
+    createAccept: (String, String) ~> ();
+    checkAsyncDone: (String) ~> (String);
+    hangup: (String) ~> ();
+    hangupAll: () ~> ();
+
+    showInputs: () ~> ();
+    setInputs: () ~> ();
+    basicInputs: () ~> ();
+
+    checkDeviceSet: () ~> (String);
+
+    checkForIceCandidates: (String) ~> (String);
+    newRemoteCandidate: (String, String) ~> ();
+  }
+}
+
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case (clientPid,_)::clients ->
+            clientPid ! msg;
+            broadcast(clients, msg)
+    }
+}
+
+fun serverLoop(clients, curID) server {
+
+  receive {
+
+    case Register(callerPid, clientPid) ->
+      var strID = intToString(curID);
+      callerPid ! ID(strID);
+      clientPid ! RegisterClient(strID);
+      var newClients = clients ++ [(clientPid, strID)];
+
+      serverLoop(newClients, curID + 1)
+
+    case Send(targetID, msg) ->
+      var target = for ((pid , clientID) <- clients)
+        if (clientID == targetID) {
+          [(pid , clientID)]
+        } else {
+          []
+        };
+
+      broadcast(target, msg);
+      serverLoop(clients, curID)
+    }
+}
+
+var serverPid = spawn { serverLoop([], 0) };
+
+##WebRTC Functions
+sig waitForAsync : (String) ~> (String)
+fun waitForAsync(foreignID){
+
+  var response = JSFFI.checkAsyncDone(foreignID);
+
+  if (response <> "wait") {
+    response
+    }
+    else {
+      waitForAsync(foreignID)
+    }
+}
+
+
+fun checkCandidates(foreignID, localID) {
+  var candidate = JSFFI.checkForIceCandidates(foreignID);
+
+  if (candidate <> "None") {
+
+    serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "ice", data = candidate));
+
+    checkCandidates(foreignID, localID)
+  }
+  else {
+    checkCandidates(foreignID, localID)
+  }
+}
+
+##Message Types:
+##VidMessage(senderID = id, destID = id, msgType = type, data = data)
+
+fun handleVidMessage(msg) {
+  print("VIDMESSAGE");
+  var myID = msg.destID;
+
+  var foreignID = msg.senderID;
+
+  var type = msg.msgType;
+
+
+  switch(type) {
+    case "initial" ->
+      #print("This is an initial VidMessage");
+      JSFFI.createOffer(foreignID);
+      var offerStr = waitForAsync(foreignID);
+      #print(offerStr);
+      serverPid ! Send(foreignID, VidMessage(senderID = myID, destID = foreignID, msgType = "offer", data = offerStr));
+
+      var iceClient = spawnClient { checkCandidates(foreignID, myID) };
+      ()
+
+    case "offer" ->
+      var offerStr = msg.data;
+      JSFFI.createAnswer(foreignID,offerStr);
+
+      var answerStr = waitForAsync(foreignID);
+
+      serverPid ! Send(foreignID, VidMessage(senderID = myID, destID = foreignID, msgType = "accept", data = answerStr));
+
+      var iceClient = spawnClient { checkCandidates(foreignID, myID) };
+      ()
+
+    case "accept" ->
+      var answerStr = msg.data;
+      JSFFI.createAccept(foreignID,answerStr);
+
+      var _ = waitForAsync(foreignID);
+      ()
+
+    case "ice" ->
+      var candidate = msg.data;
+      JSFFI.newRemoteCandidate(foreignID,candidate);
+      ()
+  }
+}
+
+##CallClient
+fun callClientLoop() {
+  receive {
+
+    case RegisterClient(myID) ->
+      print("CallClient received ID: " ^^ myID);
+      callClientLoop()
+
+    ##From Server - Support
+    case VidMessage(msg) ->
+      print("VidMessage Received from " ^^ msg.senderID);
+      handleVidMessage(msg);
+      callClientLoop()
+  }
+}
+
+fun startClient() {
+
+  var clientPid = spawnClient {callClientLoop()};
+
+  spawnWait {serverPid ! Register(self(), clientPid); receive {case ID(id) -> id}}
+}
+
+fun callClient(myID, foreignID) {
+  serverPid ! Send(foreignID, VidMessage(senderID = myID, destID = foreignID, msgType = "initial", data = ""))
+}
+
+fun setInputs() {
+  JSFFI.basicInputs();
+  ()
+}
+
+fun waitForDeviceSet() {
+  if (JSFFI.checkDeviceSet() == "set") {
+    ()
+  } else {
+    waitForDeviceSet()
+  }
+}
+
+fun playLocalVid() {
+  waitForDeviceSet();
+
+  var vidXML = <video id = "local_vid" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
+  appendChildren(vidXML, getNodeById("vids"));
+  JSFFI.playLocalVideo("local_vid");
+  ()
+}
