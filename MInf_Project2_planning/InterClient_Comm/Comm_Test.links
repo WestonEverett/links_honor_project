@@ -1,22 +1,92 @@
 import CommTestLib;
 
+##Server
+
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case clientPid::clients ->
+            clientPid ! msg;
+            broadcast(clients, msg)
+    }
+}
+
+fun serverLoop(clients) server {
+
+  receive {
+
+    case Register(clientPid) ->
+      serverLoop(clientPid :: clients)
+
+    case Broadcast(msg) ->
+      broadcast(clients, msg);
+      serverLoop(clients)
+    }
+}
+
+var serverPid = spawn { serverLoop([]) };
+
 ##Client
 
-fun clientLoop() {
+fun handleNewCallClient() {
+  print("new Call Client");
+  var id = CommTestLib.startClient();
+  var idString = "div" ^^ id;
+  var divXML =
+    <div id = "{idString}">
+      <text>{stringToXml(id)}</text>
+    </div>;
+
+  appendChildren(divXML, getNodeById("callButtons"));
+
+  serverPid ! Broadcast(NewCaller(self(), id));
+  id
+}
+
+fun addCallButton(myID, otherID) {
+  var buttonXML =
+    <button type="submit" l:onclick="{CommTestLib.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>;
+  var idString = "div" ^^ myID;
+  appendChildren(buttonXML, getNodeById(idString))
+}
+
+fun handleOtherCallClient(myIDs, id) {
+  print("Other User added " ^^ id);
+
+  var _ = for (myID <- myIDs) {
+    addCallButton(myID, id);
+    []
+  };
+
+  ()
+
+}
+
+fun clientLoop(myIDs, otherIDs) {
   receive {
 
     case NewCallClient() ->
-      print("new Call Client");
-      var id = CommTestLib.startClient();
+      var id = handleNewCallClient();
       print("Call Client with ID: " ^^ id ^^ " created");
-      clientLoop()
+      clientLoop(id :: myIDs, otherIDs)
+
+    case NewCaller(source, id) ->
+      if(self() == source){
+        clientLoop(myIDs, otherIDs)
+      } else {
+        handleOtherCallClient(myIDs, id);
+        clientLoop(myIDs, id :: otherIDs)
+      }
+
+
   }
 }
 
 fun prepClient() {
+  serverPid ! Register(self());
+
   CommTestLib.setInputs();
-  ##CommTestLib.playLocalVid();
-  clientLoop()
+  clientLoop([], [])
 }
 
 fun mainPage() {
@@ -26,7 +96,8 @@ fun mainPage() {
   page
     <html>
       <button type="submit" l:onclick="{clientPid ! NewCallClient()}">Produce Client</button>
-      <button type="submit" l:onclick="{CommTestLib.callClient("0","1")}">Call Client 1 from 0</button>
+      <div id = "callButtons">
+      </div>
       <div id = "info">
       </div>
       <div id = "vids"></div>

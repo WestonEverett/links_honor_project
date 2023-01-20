@@ -1,23 +1,6 @@
 let localName = '';
 let localID = '';
 
-function _askForYesNo(requestStr){
-  if(confirm(requestStr)){
-    return "true";
-  }
-  else {
-    return "false";
-  }
-}
-
-function _toStr(object) {
-  return object;
-}
-
-var askForYesNo = LINKS.kify(_askForYesNo);
-var toString = LINKS.kify(_toStr);
-
-
 var audVidConstraints;
 
 async function _basicInputs(){
@@ -109,11 +92,14 @@ function _checkDeviceSet(){
   return deviceSet;
 }
 
-//let localStream;
-
 async function _playLocalVideo(ID) {
 
-  const video = document.querySelector('video#' + ID);
+  var video = document.createElement('video');
+  newVid.setAttribute('autoplay', 'true');
+  newVid.setAttribute('object-fit', 'cover');
+  newVid.setAttribute('width', '320px');
+  newVid.setAttribute('height', '240px');
+  newVid.setAttribute('id', 'VidOf' + ID);
 
   try {
     let localStream = await navigator.mediaDevices.getUserMedia(audVidConstraintsLocal);
@@ -121,6 +107,8 @@ async function _playLocalVideo(ID) {
   } catch (e) {
     console.error("video error", e);
   }
+
+  document.getElementById('vids').appendChild(newVid);
 }
 
 

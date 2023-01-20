@@ -11,8 +11,6 @@ module JSFFI {
     hangup: (String) ~> ();
     hangupAll: () ~> ();
 
-    showInputs: () ~> ();
-    setInputs: () ~> ();
     basicInputs: () ~> ();
 
     checkDeviceSet: () ~> (String);
@@ -91,7 +89,6 @@ fun checkCandidates(foreignID, localID) {
 ##VidMessage(senderID = id, destID = id, msgType = type, data = data)
 
 fun handleVidMessage(msg) {
-  print("VIDMESSAGE");
   var myID = msg.destID;
 
   var foreignID = msg.senderID;
@@ -101,7 +98,7 @@ fun handleVidMessage(msg) {
 
   switch(type) {
     case "initial" ->
-      #print("This is an initial VidMessage");
+      print("INITIAL");
       JSFFI.createOffer(foreignID);
       var offerStr = waitForAsync(foreignID);
       #print(offerStr);
@@ -111,6 +108,7 @@ fun handleVidMessage(msg) {
       ()
 
     case "offer" ->
+      print("OFFER");
       var offerStr = msg.data;
       JSFFI.createAnswer(foreignID,offerStr);
 
@@ -122,6 +120,7 @@ fun handleVidMessage(msg) {
       ()
 
     case "accept" ->
+      print("ACCEPT");
       var answerStr = msg.data;
       JSFFI.createAccept(foreignID,answerStr);
 
@@ -129,6 +128,7 @@ fun handleVidMessage(msg) {
       ()
 
     case "ice" ->
+      print("ICE");
       var candidate = msg.data;
       JSFFI.newRemoteCandidate(foreignID,candidate);
       ()
@@ -177,9 +177,6 @@ fun waitForDeviceSet() {
 
 fun playLocalVid() {
   waitForDeviceSet();
-
-  var vidXML = <video id = "local_vid" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
-  appendChildren(vidXML, getNodeById("vids"));
-  JSFFI.playLocalVideo("local_vid");
+  JSFFI.playLocalVideo("Local");
   ()
 }
