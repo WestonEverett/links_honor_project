@@ -44,8 +44,12 @@ fun handleNewCallClient() {
 }
 
 fun addCallButton(myID, otherID) {
-  var buttonXML =
-    <button type="submit" l:onclick="{CommTestLib.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>;
+  var buttonXML = if(myID == otherID) {
+      <button type="submit" l:onclick="{CommTestLib.playLocalVid()}">Call {stringToXml(otherID)}</button>
+  } else {
+      <button type="submit" l:onclick="{CommTestLib.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>
+  };
+
   var idString = "div" ^^ myID;
   appendChildren(buttonXML, getNodeById(idString))
 }
@@ -62,25 +66,19 @@ fun handleOtherCallClient(myIDs, id) {
 
 }
 
-fun clientLoop(myIDs, otherIDs) {
+fun clientLoop(myIDs, allIDs) {
   receive {
 
     case NewCallClient() ->
       var id = handleNewCallClient();
       print("Call Client with ID: " ^^ id ^^ " created");
-      clientLoop(id :: myIDs, otherIDs)
+      clientLoop(id :: myIDs, allIDs)
 
     case NewCaller(source, id) ->
-      if(self() == source){
-        clientLoop(myIDs, otherIDs)
-      } else {
         handleOtherCallClient(myIDs, id);
-        clientLoop(myIDs, id :: otherIDs)
+        clientLoop(myIDs, id :: allIDs)
       }
-
-
   }
-}
 
 fun prepClient() {
   serverPid ! Register(self());

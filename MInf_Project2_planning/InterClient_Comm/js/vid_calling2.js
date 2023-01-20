@@ -95,11 +95,11 @@ function _checkDeviceSet(){
 async function _playLocalVideo(ID) {
 
   var video = document.createElement('video');
-  newVid.setAttribute('autoplay', 'true');
-  newVid.setAttribute('object-fit', 'cover');
-  newVid.setAttribute('width', '320px');
-  newVid.setAttribute('height', '240px');
-  newVid.setAttribute('id', 'VidOf' + ID);
+  video.setAttribute('autoplay', 'true');
+  video.setAttribute('object-fit', 'cover');
+  video.setAttribute('width', '320px');
+  video.setAttribute('height', '240px');
+  video.setAttribute('id', 'VidOf' + ID);
 
   try {
     let localStream = await navigator.mediaDevices.getUserMedia(audVidConstraintsLocal);
@@ -108,7 +108,7 @@ async function _playLocalVideo(ID) {
     console.error("video error", e);
   }
 
-  document.getElementById('vids').appendChild(newVid);
+  document.getElementById('vids').appendChild(video);
 }
 
 
