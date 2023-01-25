@@ -1,22 +1,22 @@
 ##Server
 
 module JSFFI {
-  alien javascript "/js/vid_calling2.js" {
+  alien javascript "/js/sep_vidcalls.js" {
     playLocalVideo : (String) ~> ();
 
-    createOffer: (String) ~> ();
-    createAnswer: (String, String) ~> ();
-    createAccept: (String, String) ~> ();
-    checkAsyncDone: (String) ~> (String);
-    hangup: (String) ~> ();
-    hangupAll: () ~> ();
+    createOffer: (String, String) ~> ();
+    createAnswer: (String, String, String) ~> ();
+    createAccept: (String, String, String) ~> ();
+    checkAsyncDone: (String, String) ~> (String);
+    hangup: (String, String) ~> ();
+    hangupAll: (String) ~> ();
 
     basicInputs: () ~> ();
 
     checkDeviceSet: () ~> (String);
 
-    checkForIceCandidates: (String) ~> (String);
-    newRemoteCandidate: (String, String) ~> ();
+    checkForIceCandidates: (String, String) ~> (String);
+    newRemoteCandidate: (String, String, String) ~> ();
   }
 }
 
@@ -57,22 +57,22 @@ fun serverLoop(clients, curID) server {
 var serverPid = spawn { serverLoop([], 0) };
 
 ##WebRTC Functions
-sig waitForAsync : (String) ~> (String)
-fun waitForAsync(foreignID){
+sig waitForAsync : (String, String) ~> (String)
+fun waitForAsync(myID, foreignID){
 
-  var response = JSFFI.checkAsyncDone(foreignID);
+  var response = JSFFI.checkAsyncDone(myID, foreignID);
 
   if (response <> "wait") {
     response
     }
     else {
-      waitForAsync(foreignID)
+      waitForAsync(myID, foreignID)
     }
 }
 
 
 fun checkCandidates(foreignID, localID) {
-  var candidate = JSFFI.checkForIceCandidates(foreignID);
+  var candidate = JSFFI.checkForIceCandidates(localID, foreignID);
 
   if (candidate <> "None") {
 
@@ -99,8 +99,8 @@ fun handleVidMessage(msg) {
   switch(type) {
     case "initial" ->
       print("INITIAL");
-      JSFFI.createOffer(foreignID);
-      var offerStr = waitForAsync(foreignID);
+      JSFFI.createOffer(myID, foreignID);
+      var offerStr = waitForAsync(myID, foreignID);
       #print(offerStr);
       serverPid ! Send(foreignID, VidMessage(senderID = myID, destID = foreignID, msgType = "offer", data = offerStr));
 
@@ -110,9 +110,9 @@ fun handleVidMessage(msg) {
     case "offer" ->
       print("OFFER");
       var offerStr = msg.data;
-      JSFFI.createAnswer(foreignID,offerStr);
+      JSFFI.createAnswer(myID, foreignID,offerStr);
 
-      var answerStr = waitForAsync(foreignID);
+      var answerStr = waitForAsync(myID, foreignID);
 
       serverPid ! Send(foreignID, VidMessage(senderID = myID, destID = foreignID, msgType = "accept", data = answerStr));
 
@@ -122,15 +122,15 @@ fun handleVidMessage(msg) {
     case "accept" ->
       print("ACCEPT");
       var answerStr = msg.data;
-      JSFFI.createAccept(foreignID,answerStr);
+      JSFFI.createAccept(myID, foreignID,answerStr);
 
-      var _ = waitForAsync(foreignID);
+      var _ = waitForAsync(myID, foreignID);
       ()
 
     case "ice" ->
       print("ICE");
       var candidate = msg.data;
-      JSFFI.newRemoteCandidate(foreignID,candidate);
+      JSFFI.newRemoteCandidate(myID, foreignID,candidate);
       ()
   }
 }
@@ -149,14 +149,14 @@ fun callClientLoop() {
       handleVidMessage(msg);
       callClientLoop()
 
-    case Hangup(foreignID) ->
-      print("Hanging up with " ^^ foreignID);
-      JSFFI.hangup(foreignID);
+    case Hangup(myID, foreignID) ->
+      print("Hanging up with " ^^ foreignID ^^ " on Client " ^^ myID);
+      JSFFI.hangup(myID, foreignID);
       callClientLoop()
 
-    case HangupAll() ->
-      print("Hanging up all");
-      JSFFI.hangupAll();
+    case HangupAll(myID) ->
+      print("Hanging up all connections on " ^^ myID);
+      JSFFI.hangupAll(myID);
       callClientLoop()
   }
 }
@@ -173,11 +173,11 @@ fun callClient(myID, foreignID) {
 }
 
 fun hangup(myID, foreignID) {
-  serverPid ! Send(myID, Hangup(foreignID))
+  serverPid ! Send(myID, Hangup(myID, foreignID))
 }
 
 fun hangupAll(myID) {
-  serverPid ! Send(myID, HangupAll())
+  serverPid ! Send(myID, HangupAll(myID))
 }
 
 fun setInputs() {

@@ -1,4 +1,4 @@
-import CommTestLib;
+import VidAPI;
 
 ##Server
 
@@ -30,7 +30,7 @@ var serverPid = spawn { serverLoop([]) };
 
 fun handleNewCallClient() {
   print("new Call Client");
-  var id = CommTestLib.startClient();
+  var id = VidAPI.startClient();
   var idString = "div" ^^ id;
   var divXML =
     <div id = "{idString}">
@@ -46,13 +46,13 @@ fun handleNewCallClient() {
 fun addCallButton(myID, otherID) {
   var buttonXML = if(myID == otherID) {
       <div>
-        <button type="submit" l:onclick="{CommTestLib.playLocalVid()}">Call {stringToXml(otherID)}</button>
-        <button type="submit" l:onclick="{CommTestLib.hangupAll(myID)}">Hangup All Calls</button>
+        <button type="submit" l:onclick="{VidAPI.playLocalVid()}">Call {stringToXml(otherID)}</button>
+        <button type="submit" l:onclick="{VidAPI.hangupAll(myID)}">Hangup All</button>
       </div>
   } else {
       <div>
-        <button type="submit" l:onclick="{CommTestLib.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>
-        <button type="submit" l:onclick="{CommTestLib.hangup(myID, otherID)}">Hangup {stringToXml(otherID)}</button>
+        <button type="submit" l:onclick="{VidAPI.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>
+        <button type="submit" l:onclick="{VidAPI.hangup(myID, otherID)}">Hangup {stringToXml(otherID)}</button>
       </div>
   };
 
@@ -89,7 +89,7 @@ fun clientLoop(myIDs, allIDs) {
 fun prepClient() {
   serverPid ! Register(self());
 
-  CommTestLib.setInputs();
+  VidAPI.setInputs();
   clientLoop([], [])
 }
 
