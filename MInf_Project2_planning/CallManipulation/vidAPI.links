@@ -11,8 +11,11 @@ module JSFFI {
     hangup: (String, String) ~> ();
     hangupAll: (String) ~> ();
 
+    setOutgoingAudio: (String, String, Bool) ~> ();
+    setOutgoingVideo: (String, String, Bool) ~> ();
+
     basicInputs: () ~> ();
-    setWriteLoc: (String, String, String) ~> ();
+
     checkDeviceSet: () ~> (String);
 
     checkForIceCandidates: (String, String) ~> (String);
@@ -158,18 +161,24 @@ fun callClientLoop() {
       print("Hanging up all connections on " ^^ myID);
       JSFFI.hangupAll(myID);
       callClientLoop()
+
+    case SetAudio(myID, foreignID, toBool) ->
+      print(myID ^^ " Setting Audio of " ^^ foreignID);
+      JSFFI.setOutgoingAudio(myID, foreignID, toBool);
+      callClientLoop()
+
+    case SetVideo(myID, foreignID, toBool) ->
+      print(myID ^^ " Setting Video of " ^^ foreignID);
+      JSFFI.setOutgoingVideo(myID, foreignID, toBool);
+      callClientLoop()
   }
 }
 
-fun startClient(defaultWriteLoc) {
+fun startClient() {
 
   var clientPid = spawnClient {callClientLoop()};
 
-  var id = spawnWait {serverPid ! Register(self(), clientPid); receive {case ID(id) -> id}};
-
-  JSFFI.setWriteLoc(id, "default", defaultWriteLoc);
-
-  id
+  spawnWait {serverPid ! Register(self(), clientPid); receive {case ID(id) -> id}}
 }
 
 fun callClient(myID, foreignID) {
@@ -184,13 +193,17 @@ fun hangupAll(myID) {
   serverPid ! Send(myID, HangupAll(myID))
 }
 
+fun setOutgoingAudio(myID, foreignID, toBool) {
+  serverPid ! Send(myID, SetAudio(myID, foreignID, toBool))
+}
+
+fun setOutgoingVideo(myID, foreignID, toBool) {
+  serverPid ! Send(myID, SetVideo(myID, foreignID, toBool))
+}
+
 fun setInputs() {
   JSFFI.basicInputs();
   ()
-}
-
-fun setWriteLoc(localID, foreignID, loc) {
-  JSFFI.setWriteLoc(localID, foreignID, loc)
 }
 
 fun waitForDeviceSet() {
@@ -201,8 +214,8 @@ fun waitForDeviceSet() {
   }
 }
 
-fun playLocalVid(localID) {
+fun playLocalVid() {
   waitForDeviceSet();
-  JSFFI.playLocalVideo(localID);
+  JSFFI.playLocalVideo("Local");
   ()
 }

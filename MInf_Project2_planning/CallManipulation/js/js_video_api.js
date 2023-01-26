@@ -3,6 +3,11 @@ var deviceSet = "";
 const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]};
 let peerData = {};
 
+const offerOptions = {
+  offerToReceiveAudio: 1,
+  offerToReceiveVideo: 1
+};
+
 async function _basicInputs(){
   var deviceInfos = await navigator.mediaDevices.enumerateDevices();
 
@@ -108,17 +113,6 @@ async function _playLocalVideo(ID) {
 
   document.getElementById('vids').appendChild(video);
 }
-
-
-
-
-
-
-
-const offerOptions = {
-  offerToReceiveAudio: 1,
-  offerToReceiveVideo: 1
-};
 
 async function _createOffer(localID, foreignID) {
 
@@ -238,6 +232,42 @@ async function _newRemoteCandidate(localID, foreignID, iceCandidate){
   }
 }
 
+function _setOutgoingAudio(localID, foreignID, toBool){
+  if(foreignID == localID) {
+    console.log("Toggling all to " + toBool);
+    for(id in peerData[localID]){
+      peerData[localID][id].localStream.getAudioTracks().forEach(track => track.enabled = toBool);
+      console.log(peerData[localID][id].remoteStream.getAudioTracks().length + " audio tracks toggled for " + id);
+    }
+  }
+  else if(foreignID in peerData[localID]){
+    peerData[localID][foreignID].remoteStream.getAudioTracks().forEach(track => track.enabled = toBool);
+    console.log(peerData[localID][foreignID].remoteStream.getAudioTracks().length + " audio tracks toggled for " + foreignID);
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
+function _setOutgoingVideo(localID, foreignID, toBool){
+  if(foreignID == localID) {
+    console.log("Toggling all to " + toBool);
+    console.log(peerData[localID]);
+    for(id in peerData[localID]){
+      peerData[localID][id].localStream.getVideoTracks().forEach(track => track.enabled = true);
+      console.log(peerData[localID][id].remoteStream.getVideoTracks().length + " video tracks toggled for " + id);
+    }
+  }
+  else if(foreignID in peerData[localID]){
+    peerData[localID][foreignID].remoteStream.getVideoTracks().forEach(track => track.enabled = toBool);
+    console.log(peerData[localID][foreignID].remoteStream.getVideoTracks().length + " video tracks toggled for " + foreignID);
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
+
 var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);
 var createAnswer = LINKS.kify(_createAnswer);
@@ -248,6 +278,9 @@ var hangupAll = LINKS.kify(_hangupAll);
 var showInputs = LINKS.kify(_showInputs);
 var setInputs = LINKS.kify(_setInputs);
 var basicInputs = LINKS.kify(_basicInputs);
+
+var setOutgoingAudio = LINKS.kify(_setOutgoingAudio);
+var setOutgoingVideo = LINKS.kify(_setOutgoingVideo);
 
 var checkDeviceSet = LINKS.kify(_checkDeviceSet);
 

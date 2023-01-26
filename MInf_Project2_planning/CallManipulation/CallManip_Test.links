@@ -30,44 +30,33 @@ var serverPid = spawn { serverLoop([]) };
 
 fun handleNewCallClient() {
   print("new Call Client");
-  var id = VidAPI.startClient("vids");
+  var id = VidAPI.startClient();
   var idString = "div" ^^ id;
   var divXML =
-    <div>
-      <div id = "{idString}">
-        <text>{stringToXml(id)}</text>
-      </div>
-      <text>Incoming Calls</text>
-      <div id = "{"in-vid-" ^^ idString}"></div>
+    <div id = "{idString}">
+      <text>{stringToXml(id)}</text>
     </div>;
 
   appendChildren(divXML, getNodeById("callButtons"));
-
-  VidAPI.setWriteLoc(id, "default", "in-vid-" ^^ idString);
 
   serverPid ! Broadcast(NewCaller(self(), id));
   id
 }
 
 fun addCallButton(myID, otherID) {
-
-  var divID = myID ^^ "-" ^^ otherID;
-
   var buttonXML = if(myID == otherID) {
       <div>
-        <div>
-          <button type="submit" l:onclick="{VidAPI.playLocalVid(myID)}">Call {stringToXml(otherID)}</button>
-          <button type="submit" l:onclick="{VidAPI.hangupAll(myID)}">Hangup All</button>
-        </div>
-        <div id = "{divID}"></div>
+        <button type="submit" l:onclick="{VidAPI.playLocalVid()}">Call {stringToXml(otherID)}</button>
+        <button type="submit" l:onclick="{VidAPI.hangupAll(myID)}">Hangup All</button>
+        <button type="submit" l:onclick="{VidAPI.setOutgoingAudio(myID, myID, true)}">Re-Enable Audio</button>
+        <button type="submit" l:onclick="{VidAPI.setOutgoingVideo(myID, myID, true)}">Re-Enable Video</button>
       </div>
   } else {
       <div>
-        <div>
-          <button type="submit" l:onclick="{VidAPI.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>
-          <button type="submit" l:onclick="{VidAPI.hangup(myID, otherID)}">Hangup {stringToXml(otherID)}</button>
-        </div>
-        <div id = "{divID}"></div>
+        <button type="submit" l:onclick="{VidAPI.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>
+        <button type="submit" l:onclick="{VidAPI.hangup(myID, otherID)}">Hangup {stringToXml(otherID)}</button>
+        <button type="submit" l:onclick="{VidAPI.setOutgoingAudio(myID, otherID, false)}">Disable Audio</button>
+        <button type="submit" l:onclick="{VidAPI.setOutgoingVideo(myID, otherID, false)}">Disable Video</button>
       </div>
   };
 
@@ -80,7 +69,6 @@ fun handleOtherCallClient(myIDs, id) {
 
   var _ = for (myID <- myIDs) {
     addCallButton(myID, id);
-    VidAPI.setWriteLoc(myID, id, myID ^^ "-" ^^ id);
     []
   };
 
