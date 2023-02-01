@@ -256,6 +256,80 @@ async function _newRemoteCandidate(localID, foreignID, iceCandidate){
   }
 }
 
+function _setOutgoingAudio(localID, foreignID, toBool){
+  if(foreignID == localID) {
+    console.log("Toggling all outgoing audio to " + toBool);
+    for(id in peerData[localID]){
+      peerData[localID][id].localStream.getAudioTracks().forEach(track => track.enabled = toBool);
+      console.log(peerData[localID][id].localStream.getAudioTracks().length + " audio tracks toggled for " + id);
+    }
+  }
+  else if(foreignID in peerData[localID]){
+    console.log("Toggling outgoing audio " + foreignID + " to " + toBool);
+    peerData[localID][foreignID].localStream.getAudioTracks().forEach(track => track.enabled = toBool);
+    console.log(peerData[localID][foreignID].localStream.getAudioTracks().length + " audio tracks toggled for " + foreignID);
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
+function _setOutgoingVideo(localID, foreignID, toBool){
+  if(foreignID == localID) {
+    console.log("Toggling all outgoing video to " + toBool);
+    console.log(peerData[localID]);
+    for(id in peerData[localID]){
+      peerData[localID][id].localStream.getVideoTracks().forEach(track => track.enabled = toBool);
+      console.log(peerData[localID][id].localStream.getVideoTracks().length + " video tracks toggled for " + id);
+    }
+  }
+  else if(foreignID in peerData[localID]){
+    console.log("Toggling outgoing video " + foreignID + " to " + toBool);
+    peerData[localID][foreignID].localStream.getVideoTracks().forEach(track => track.enabled = toBool);
+    console.log(peerData[localID][foreignID].localStream.getVideoTracks().length + " video tracks toggled for " + foreignID);
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
+function _setIncomingAudio(localID, foreignID, toBool){
+  if(foreignID == localID) {
+    console.log("Toggling all incoming audio to " + toBool);
+    for(id in peerData[localID]){
+      peerData[localID][id].remoteStream.getAudioTracks().forEach(track => track.enabled = toBool);
+      console.log(peerData[localID][id].remoteStream.getAudioTracks().length + " audio tracks toggled for " + id);
+    }
+  }
+  else if(foreignID in peerData[localID]){
+    console.log("Toggling incoming audio " + foreignID + " to " + toBool);
+    peerData[localID][foreignID].remoteStream.getAudioTracks().forEach(track => track.enabled = toBool);
+    console.log(peerData[localID][foreignID].remoteStream.getAudioTracks().length + " audio tracks toggled for " + foreignID);
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
+function _setIncomingVideo(localID, foreignID, toBool){
+  if(foreignID == localID) {
+    console.log("Toggling all incoming video to " + toBool);
+    console.log(peerData[localID]);
+    for(id in peerData[localID]){
+      peerData[localID][id].remoteStream.getVideoTracks().forEach(track => track.enabled = toBool);
+      console.log(peerData[localID][id].remoteStream.getVideoTracks().length + " video tracks toggled for " + id);
+    }
+  }
+  else if(foreignID in peerData[localID]){
+    console.log("Toggling incoming video " + foreignID + " to " + toBool);
+    peerData[localID][foreignID].remoteStream.getVideoTracks().forEach(track => track.enabled = toBool);
+    console.log(peerData[localID][foreignID].remoteStream.getVideoTracks().length + " video tracks toggled for " + foreignID);
+  }
+  else {
+    console.log("foreignID not found");
+  }
+}
+
 var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);
 var createAnswer = LINKS.kify(_createAnswer);
@@ -270,6 +344,11 @@ var basicInputs = LINKS.kify(_basicInputs);
 var setWriteLoc = LINKS.kify(_setWriteLoc);
 
 var checkDeviceSet = LINKS.kify(_checkDeviceSet);
+
+var setOutgoingAudio = LINKS.kify(_setOutgoingAudio);
+var setOutgoingVideo = LINKS.kify(_setOutgoingVideo);
+var setIncomingAudio = LINKS.kify(_setIncomingAudio);
+var setIncomingVideo = LINKS.kify(_setIncomingVideo);
 
 var checkAsyncDone = LINKS.kify(_checkAsyncDone);
 

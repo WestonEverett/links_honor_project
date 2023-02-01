@@ -17,6 +17,11 @@ module JSFFI {
 
     checkForIceCandidates: (String, String) ~> (String);
     newRemoteCandidate: (String, String, String) ~> ();
+
+    setIncomingAudio: (String, String, Bool) ~> ();
+    setIncomingVideo: (String, String, Bool) ~> ();
+    setOutgoingAudio: (String, String, Bool) ~> ();
+    setOutgoingVideo: (String, String, Bool) ~> ();
   }
 }
 
@@ -158,6 +163,22 @@ fun callClientLoop() {
       print("Hanging up all connections on " ^^ myID);
       JSFFI.hangupAll(myID);
       callClientLoop()
+
+    case SetOutgoingAudio(myID, foreignID, toBool) ->
+      JSFFI.setOutgoingAudio(myID, foreignID, toBool);
+      callClientLoop()
+
+    case SetOutgoingVideo(myID, foreignID, toBool) ->
+      JSFFI.setOutgoingVideo(myID, foreignID, toBool);
+      callClientLoop()
+
+    case SetIncomingAudio(myID, foreignID, toBool) ->
+      JSFFI.setIncomingAudio(myID, foreignID, toBool);
+      callClientLoop()
+
+    case SetIncomingVideo(myID, foreignID, toBool) ->
+      JSFFI.setIncomingVideo(myID, foreignID, toBool);
+      callClientLoop()
   }
 }
 
@@ -191,6 +212,22 @@ fun setInputs() {
 
 fun setWriteLoc(localID, foreignID, loc) {
   JSFFI.setWriteLoc(localID, foreignID, loc)
+}
+
+fun setIncomingAudio(localID, foreignID, toBool) {
+  serverPid ! Send(localID, SetIncomingAudio(localID, foreignID, toBool))
+}
+
+fun setIncomingVideo(localID, foreignID, toBool) {
+  serverPid ! Send(localID, SetIncomingVideo(localID, foreignID, toBool))
+}
+
+fun setOutgoingAudio(localID, foreignID, toBool) {
+  serverPid ! Send(localID, SetOutgoingAudio(localID, foreignID, toBool))
+}
+
+fun setOutgoingVideo(localID, foreignID, toBool) {
+  serverPid ! Send(localID, SetOutgoingVideo(localID, foreignID, toBool))
 }
 
 fun waitForDeviceSet() {
