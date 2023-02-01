@@ -1,0 +1,146 @@
+import VidAPI;
+
+##Server
+
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case clientPid::clients ->
+            clientPid ! msg;
+            broadcast(clients, msg)
+    }
+}
+
+fun serverLoop(clients) server {
+
+  receive {
+
+    case Register(clientPid) ->
+      serverLoop(clientPid :: clients)
+
+    case Broadcast(msg) ->
+      broadcast(clients, msg);
+      serverLoop(clients)
+    }
+}
+
+var serverPid = spawn { serverLoop([]) };
+
+##Client
+
+fun handleNewCallClient() {
+  print("new Call Client");
+  var id = VidAPI.startClient("vids");
+  var idString = "div" ^^ id;
+  var divXML =
+    <div>
+      <div id = "{idString}">
+        <text>{stringToXml(id)}</text>
+      </div>
+      <text>Incoming Calls</text>
+      <div id = "{"in-vid-" ^^ idString}"></div>
+    </div>;
+
+  appendChildren(divXML, getNodeById("callButtons"));
+
+  VidAPI.setWriteLoc(id, "default", "in-vid-" ^^ idString);
+
+  serverPid ! Broadcast(NewCaller(self(), id));
+  id
+}
+
+fun addCallButton(myID, otherID) {
+
+  var divID = myID ^^ "-" ^^ otherID;
+
+  var buttonXML = if(myID == otherID) {
+      <div>
+        <div>
+          <button type="submit" l:onclick="{VidAPI.playLocalVid(myID)}">Call {stringToXml(otherID)}</button>
+          <button type="submit" l:onclick="{VidAPI.hangupAll(myID)}">Hangup All</button>
+          <button type="submit" l:onclick="{VidAPI.setOutgoingAudio(myID, myID, true)}">Re-Enable Outgoing Audio</button>
+          <button type="submit" l:onclick="{VidAPI.setOutgoingVideo(myID, myID, true)}">Re-Enable Outgoing Video</button>
+          <button type="submit" l:onclick="{VidAPI.setIncomingAudio(myID, myID, true)}">Re-Enable Incoming Audio</button>
+          <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, myID, true)}">Re-Enable Incoming Video</button>
+        </div>
+        <div id = "{divID}"></div>
+      </div>
+  } else {
+      <div>
+        <div>
+          <button type="submit" l:onclick="{VidAPI.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>
+          <button type="submit" l:onclick="{VidAPI.hangup(myID, otherID)}">Hangup {stringToXml(otherID)}</button>
+          <button type="submit" l:onclick="{VidAPI.setOutgoingAudio(myID, otherID, false)}">Disable Outgoing Audio</button>
+          <button type="submit" l:onclick="{VidAPI.setOutgoingVideo(myID, otherID, false)}">Disable Outgoing Video</button>
+          <button type="submit" l:onclick="{VidAPI.setIncomingAudio(myID, otherID, false)}">Disable Incoming Audio</button>
+          <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, otherID, false)}">Disable Incoming Video</button>
+        </div>
+        <div id = "{divID}"></div>
+      </div>
+  };
+
+  var idString = "div" ^^ myID;
+  appendChildren(buttonXML, getNodeById(idString))
+}
+
+fun handleOtherCallClient(myIDs, id) {
+  print("Other User added " ^^ id);
+
+  var _ = for (myID <- myIDs) {
+    addCallButton(myID, id);
+    VidAPI.setWriteLoc(myID, id, myID ^^ "-" ^^ id);
+    []
+  };
+
+  ()
+
+}
+
+fun clientLoop(myIDs, allIDs) {
+  receive {
+
+    case NewCallClient() ->
+      var id = handleNewCallClient();
+      print("Call Client with ID: " ^^ id ^^ " created");
+      clientLoop(id :: myIDs, allIDs)
+
+    case NewCaller(source, id) ->
+        handleOtherCallClient(myIDs, id);
+        clientLoop(myIDs, id :: allIDs)
+      }
+  }
+
+fun prepClient() {
+  serverPid ! Register(self());
+
+  VidAPI.setInputs();
+  clientLoop([], [])
+}
+
+fun mainPage() {
+
+  var clientPid = spawnClient {prepClient()};
+
+  page
+    <html>
+      <button type="submit" l:onclick="{clientPid ! NewCallClient()}">Produce Client</button>
+      <div id = "callButtons">
+      </div>
+      <div id = "info">
+      </div>
+      <div id = "vids"></div>
+    </html>
+}
+
+fun main() {
+    # Spawns a process on the server which keeps track of all clients
+    # Registers the "mainPage" route
+    addStaticRoute("/js", "js", [("js", "text/javascript")]);
+    addRoute("/", fun(_) { mainPage() });
+    # Starts the server and distribution
+    serveWebsockets();
+    servePages()
+}
+
+
+main()
