@@ -134,13 +134,17 @@ const offerOptions = {
 
 async function _createOffer(localID, foreignID) {
 
-  await preparePC(localID, foreignID);
+  if((localID in peerData && foreignID in peerData[localID]) && peerData[localID][foreignID].pc.connectionState == "connected") {
+    peerData[localID][foreignID].dataStr = "call in progress";
+    console.log("call already in progress");
+  } else {
+    await preparePC(localID, foreignID);
 
-  var offer = await peerData[localID][foreignID].pc.createOffer(offerOptions)
-  await peerData[localID][foreignID].pc.setLocalDescription(offer);
+    var offer = await peerData[localID][foreignID].pc.createOffer(offerOptions)
+    await peerData[localID][foreignID].pc.setLocalDescription(offer);
 
-  peerData[localID][foreignID].dataStr = JSON.stringify(offer);
-
+    peerData[localID][foreignID].dataStr = JSON.stringify(offer);
+  }
 }
 
 async function preparePC(localID, foreignID){

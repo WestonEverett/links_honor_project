@@ -100,8 +100,11 @@ fun handleVidMessage(msg) {
 
   var type = msg.msgType;
 
-
-  switch(type) {
+  if(msg.data == "call in progress") {
+    print("call in progress already");
+    ()
+  } else {
+    switch(type) {
     case "initial" ->
       print("INITIAL");
       JSFFI.createOffer(myID, foreignID);
@@ -137,6 +140,7 @@ fun handleVidMessage(msg) {
       var candidate = msg.data;
       JSFFI.newRemoteCandidate(myID, foreignID,candidate);
       ()
+    }
   }
 }
 
