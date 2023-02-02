@@ -1,0 +1,280 @@
+##Server
+
+module JSFFI {
+  alien javascript "/js/js_video_api.js" {
+    playLocalVideo : (String) ~> ();
+
+    createOffer: (String, String) ~> ();
+    createAnswer: (String, String, String) ~> ();
+    createAccept: (String, String, String) ~> ();
+    checkAsyncDone: (String, String) ~> (String);
+    hangup: (String, String) ~> ();
+    hangupAll: (String) ~> ();
+
+    basicInputs: () ~> ();
+    collectSources: () ~> ();
+    checkSourcesCollected: () ~> (Bool);
+    getAudioSources: () ~> ([String]);
+    getVideoSources: () ~> ([String]);
+
+    setWriteLoc: (String, String, String) ~> ();
+    checkDeviceSet: () ~> (String);
+
+    checkForIceCandidates: (String, String) ~> (String);
+    newRemoteCandidate: (String, String, String) ~> ();
+
+    setIncomingAudio: (String, String, Bool) ~> ();
+    setIncomingVideo: (String, String, Bool) ~> ();
+    setOutgoingAudio: (String, String, Bool) ~> ();
+    setOutgoingVideo: (String, String, Bool) ~> ();
+  }
+}
+
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case (clientPid,_)::clients ->
+            clientPid ! msg;
+            broadcast(clients, msg)
+    }
+}
+
+fun serverLoop(clients, curID) server {
+
+  receive {
+
+    case Register(callerPid, clientPid) ->
+      var strID = intToString(curID);
+      callerPid ! ID(strID);
+      clientPid ! RegisterClient(strID);
+      var newClients = clients ++ [(clientPid, strID)];
+
+      serverLoop(newClients, curID + 1)
+
+    case Send(targetID, msg) ->
+      var target = for ((pid , clientID) <- clients)
+        if (clientID == targetID) {
+          [(pid , clientID)]
+        } else {
+          []
+        };
+
+      broadcast(target, msg);
+      serverLoop(clients, curID)
+    }
+}
+
+var serverPid = spawn { serverLoop([], 0) };
+
+##WebRTC Functions
+sig waitForAsync : (String, String) ~> (String)
+fun waitForAsync(myID, foreignID){
+
+  var response = JSFFI.checkAsyncDone(myID, foreignID);
+
+  if (response <> "wait") {
+    response
+    }
+    else {
+      waitForAsync(myID, foreignID)
+    }
+}
+
+
+fun checkCandidates(foreignID, localID) {
+  var candidate = JSFFI.checkForIceCandidates(localID, foreignID);
+
+  if (candidate <> "None") {
+
+    serverPid ! Send(foreignID, VidMessage(senderID = localID, destID = foreignID, msgType = "ice", data = candidate));
+
+    checkCandidates(foreignID, localID)
+  }
+  else {
+    checkCandidates(foreignID, localID)
+  }
+}
+
+##Message Types:
+##VidMessage(senderID = id, destID = id, msgType = type, data = data)
+
+fun handleVidMessage(msg) {
+  var myID = msg.destID;
+
+  var foreignID = msg.senderID;
+
+  var type = msg.msgType;
+
+  if(msg.data == "call in progress") {
+    print("call in progress already");
+    ()
+  } else {
+    switch(type) {
+    case "initial" ->
+      print("INITIAL");
+      JSFFI.createOffer(myID, foreignID);
+      var offerStr = waitForAsync(myID, foreignID);
+      #print(offerStr);
+      serverPid ! Send(foreignID, VidMessage(senderID = myID, destID = foreignID, msgType = "offer", data = offerStr));
+
+      var iceClient = spawnClient { checkCandidates(foreignID, myID) };
+      ()
+
+    case "offer" ->
+      print("OFFER");
+      var offerStr = msg.data;
+      JSFFI.createAnswer(myID, foreignID,offerStr);
+
+      var answerStr = waitForAsync(myID, foreignID);
+
+      serverPid ! Send(foreignID, VidMessage(senderID = myID, destID = foreignID, msgType = "accept", data = answerStr));
+
+      var iceClient = spawnClient { checkCandidates(foreignID, myID) };
+      ()
+
+    case "accept" ->
+      print("ACCEPT");
+      var answerStr = msg.data;
+      JSFFI.createAccept(myID, foreignID,answerStr);
+
+      var _ = waitForAsync(myID, foreignID);
+      ()
+
+    case "ice" ->
+      print("ICE");
+      var candidate = msg.data;
+      JSFFI.newRemoteCandidate(myID, foreignID,candidate);
+      ()
+    }
+  }
+}
+
+##CallClient
+fun callClientLoop() {
+  receive {
+
+    case RegisterClient(myID) ->
+      print("CallClient received ID: " ^^ myID);
+      callClientLoop()
+
+    ##From Server
+    case VidMessage(msg) ->
+      print("VidMessage Received from " ^^ msg.senderID);
+      handleVidMessage(msg);
+      callClientLoop()
+
+    case Hangup(myID, foreignID) ->
+      print("Hanging up with " ^^ foreignID ^^ " on Client " ^^ myID);
+      JSFFI.hangup(myID, foreignID);
+      callClientLoop()
+
+    case HangupAll(myID) ->
+      print("Hanging up all connections on " ^^ myID);
+      JSFFI.hangupAll(myID);
+      callClientLoop()
+
+    case SetOutgoingAudio(myID, foreignID, toBool) ->
+      JSFFI.setOutgoingAudio(myID, foreignID, toBool);
+      callClientLoop()
+
+    case SetOutgoingVideo(myID, foreignID, toBool) ->
+      JSFFI.setOutgoingVideo(myID, foreignID, toBool);
+      callClientLoop()
+
+    case SetIncomingAudio(myID, foreignID, toBool) ->
+      JSFFI.setIncomingAudio(myID, foreignID, toBool);
+      callClientLoop()
+
+    case SetIncomingVideo(myID, foreignID, toBool) ->
+      JSFFI.setIncomingVideo(myID, foreignID, toBool);
+      callClientLoop()
+  }
+}
+
+fun startClient(defaultWriteLoc) {
+
+  var clientPid = spawnClient {callClientLoop()};
+
+  var id = spawnWait {serverPid ! Register(self(), clientPid); receive {case ID(id) -> id}};
+
+  JSFFI.setWriteLoc(id, "default", defaultWriteLoc);
+
+  id
+}
+
+fun callClient(myID, foreignID) {
+  serverPid ! Send(foreignID, VidMessage(senderID = myID, destID = foreignID, msgType = "initial", data = ""))
+}
+
+fun hangup(myID, foreignID) {
+  serverPid ! Send(myID, Hangup(myID, foreignID))
+}
+
+fun hangupAll(myID) {
+  serverPid ! Send(myID, HangupAll(myID))
+}
+
+fun setInputs() {
+  JSFFI.basicInputs();
+  ()
+}
+
+fun setWriteLoc(localID, foreignID, loc) {
+  JSFFI.setWriteLoc(localID, foreignID, loc)
+}
+
+fun setIncomingAudio(localID, foreignID, toBool) {
+  serverPid ! Send(localID, SetIncomingAudio(localID, foreignID, toBool))
+}
+
+fun setIncomingVideo(localID, foreignID, toBool) {
+  serverPid ! Send(localID, SetIncomingVideo(localID, foreignID, toBool))
+}
+
+fun setOutgoingAudio(localID, foreignID, toBool) {
+  serverPid ! Send(localID, SetOutgoingAudio(localID, foreignID, toBool))
+}
+
+fun setOutgoingVideo(localID, foreignID, toBool) {
+  serverPid ! Send(localID, SetOutgoingVideo(localID, foreignID, toBool))
+}
+
+fun checkSourcesCollected() {
+  if(JSFFI.checkSourcesCollected()) {
+    ()
+  } else {
+    checkSourcesCollected()
+  }
+}
+
+fun collectSources() {
+  JSFFI.collectSources();
+  checkSourcesCollected()
+}
+
+fun getSources() {
+  var audioSources = JSFFI.getAudioSources();
+  print("made it past audio");
+  var videoSources = JSFFI.getVideoSources();
+  print("made it past video");
+
+  print(intToString(length(audioSources)));
+
+  print(hd(audioSources));
+
+  (audioSources, videoSources)
+}
+
+fun waitForDeviceSet() {
+  if (JSFFI.checkDeviceSet() == "set") {
+    ()
+  } else {
+    waitForDeviceSet()
+  }
+}
+
+fun playLocalVid(localID) {
+  waitForDeviceSet();
+  JSFFI.playLocalVideo(localID);
+  ()
+}
