@@ -83,17 +83,21 @@ function _setSources(localID, audioLabel, videoLabel){
   if(clientSources[localID]["audio"] == "any"){
     clientSources[localID]["constraints"]["audio"] = true;
   }
-  else if(localID["audio"] != "") {
+  else if(clientSources[localID]["audio"] != "") {
     clientSources[localID]["constraints"]["audio"] = {deviceId: {exact: clientSources[localID]["audio"]}};
+  } else {
+    console.log(localID + " Currently no audio selected");
   }
 
   if(clientSources[localID]["video"] == "any"){
     clientSources[localID]["constraints"]["video"] = true;
     clientSources[localID]["local constraints"]["video"] = true;
   }
-  else if(localID["video"] != "") {
+  else if(clientSources[localID]["video"] != "") {
     clientSources[localID]["constraints"]["video"] = {deviceId: {exact: clientSources[localID]["video"]}};
     clientSources[localID]["local constraints"]["video"] = {deviceId: {exact: clientSources[localID]["video"]}};
+  } else {
+    console.log(localID + " Currently no video selected");
   }
 
   deviceSet = "set";
