@@ -2,87 +2,99 @@ var audVidConstraints;
 var deviceSet = "";
 const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]};
 let peerData = {};
-var vidWriteLocs = {}
+var vidWriteLocs = {};
 
-async function _basicInputs(){
-  var deviceInfos = await navigator.mediaDevices.enumerateDevices();
+var clientSources = {};
+var availableSources = {};
+var sourcesFound = false;
 
-  const audioSource = deviceInfos.find(function (element) {
-    return element.kind == 'audioinput'
-  }).value;
-  const videoSource = deviceInfos.find(function (element) {
-    return element.kind == 'videoinput'
-  }).value;
+function cons(x, xs) { return {_head: x, _tail: xs}}
 
-  console.log(audioSource);
-  console.log(videoSource);
-
-  audVidConstraints = {
-    audio: {deviceId: audioSource ? {exact: audioSource} : false},
-    video: {deviceId: videoSource ? {exact: videoSource} : false}
-  };
-
-  audVidConstraintsLocal = {
-    audio: false,
-    video: {deviceId: videoSource ? {exact: videoSource} : false}
-  };
-
-  deviceSet = "set";
+function toLinksArray(xs) {
+  let ys = null;
+  xs.reverse().forEach(function (x) {
+    ys = cons(x,ys);
+  });
+  return ys;
 }
 
-async function _showInputs(){
-
+async function _collectSources(){
+  sourcesFound = false;
   var deviceInfos = await navigator.mediaDevices.enumerateDevices();
+  availableSources["audio"] = deviceInfos.filter(function (element) {return element.kind == 'audioinput'});
+  availableSources["video"] = deviceInfos.filter(function (element) {return element.kind == 'videoinput'});
+  sourcesFound = true;
+}
 
-  const audioInputSelect = document.getElementById('audioSource');
-  const videoSelect = document.getElementById('videoSource');
-  const selectors = [audioInputSelect, videoSelect];
+function _checkSourcesCollected(){
+  return sourcesFound;
+}
 
-  const values = selectors.map(select => select.value);
+function _getAudioSources(){
+  return toLinksArray(availableSources["audio"].map(function (element) {return element.label}));
+}
 
-  console.log(deviceInfos.length);
-  for (let i = 0; i !== deviceInfos.length; ++i) {
-    const deviceInfo = deviceInfos[i];
-    const option = document.createElement('option');
-    option.value = deviceInfo.deviceId;
-    if (deviceInfo.kind === 'audioinput') {
-      option.text = deviceInfo.label || `microphone ${audioInputSelect.length + 1}`;
-      audioInputSelect.appendChild(option);
-    } else if (deviceInfo.kind === 'videoinput') {
-      option.text = deviceInfo.label || `camera ${videoSelect.length + 1}`;
-      videoSelect.appendChild(option);
-    } else {
-      console.log('Some other kind of source/device: ', deviceInfo);
+function _getVideoSources(){
+  return toLinksArray(availableSources["video"].map(function (element) {return element.label}));
+}
+
+function _setSources(localID, audioLabel, videoLabel){
+  deviceSet = ""
+
+  prepareID(localID);
+
+  if(audioLabel != ""){
+    if(audioLabel == "false"){
+      clientSources[localID]["audio"] = "";
+    }
+    else if(audioLabel == "true"){
+      clientSources[localID]["audio"] = "any";
+    }
+    else {
+      clientSources[localID]["audio"] = availableSources["audio"].find(function (element) {
+        return element.label == audioLabel
+      }).value;
     }
   }
 
-  selectors.forEach((select, selectorIndex) => {
-    if (Array.prototype.slice.call(select.childNodes).some(n => n.value === values[selectorIndex])) {
-      select.value = values[selectorIndex];
+  if(videoLabel != ""){
+    if(videoLabel == "false"){
+      clientSources[localID]["video"] = "";
     }
-  });
-}
+    else if(videoLabel == "true"){
+      clientSources[localID]["video"] = "any";
+    }
+    else {
+      clientSources[localID]["video"] = availableSources["video"].find(function (element) {
+        return element.label == videoLabel
+      }).value;
+    }
+  }
 
-async function _setInputs(){
-
-  const audioInputSelect = document.getElementById('audioSource');
-  const videoSelect = document.getElementById('videoSource');
-
-  const audioSource = audioInputSelect.value;
-  const videoSource = videoSelect.value;
-
-  console.log(audioSource);
-  console.log(videoSource);
-
-  audVidConstraints = {
-    audio: {deviceId: audioSource ? {exact: audioSource} : false},
-    video: {deviceId: videoSource ? {exact: videoSource} : false}
-  };
-
-  audVidConstraintsLocal = {
+  clientSources[localID]["constraints"] = {
     audio: false,
-    video: {deviceId: videoSource ? {exact: videoSource} : false}
+    video: false
   };
+  clientSources[localID]["local constraints"] = {
+    audio: false,
+    video: false
+  };
+
+  if(clientSources[localID]["audio"] == "any"){
+    clientSources[localID]["constraints"]["audio"] = true;
+  }
+  else if(localID["audio"] != "") {
+    clientSources[localID]["constraints"]["audio"] = {deviceId: {exact: clientSources[localID]["audio"]}};
+  }
+
+  if(clientSources[localID]["video"] == "any"){
+    clientSources[localID]["constraints"]["video"] = true;
+    clientSources[localID]["local constraints"]["video"] = true;
+  }
+  else if(localID["video"] != "") {
+    clientSources[localID]["constraints"]["video"] = {deviceId: {exact: clientSources[localID]["video"]}};
+    clientSources[localID]["local constraints"]["video"] = {deviceId: {exact: clientSources[localID]["video"]}};
+  }
 
   deviceSet = "set";
 }
@@ -101,6 +113,8 @@ function _checkDeviceSet(){
 
 async function _playLocalVideo(ID) {
 
+  prepareID(ID);
+
   var video = document.createElement('video');
   video.setAttribute('autoplay', 'true');
   video.setAttribute('object-fit', 'cover');
@@ -109,7 +123,7 @@ async function _playLocalVideo(ID) {
   video.setAttribute('id', 'VidOf' + ID);
 
   try {
-    let localStream = await navigator.mediaDevices.getUserMedia(audVidConstraintsLocal);
+    let localStream = await navigator.mediaDevices.getUserMedia(clientSources[ID]["local constraints"]);
     video.srcObject = localStream;
   } catch (e) {
     console.error("video error", e);
@@ -126,12 +140,6 @@ async function _playLocalVideo(ID) {
   document.getElementById(loc).appendChild(video);
 }
 
-
-const offerOptions = {
-  offerToReceiveAudio: 1,
-  offerToReceiveVideo: 1
-};
-
 async function _createOffer(localID, foreignID) {
 
   if((localID in peerData && foreignID in peerData[localID]) && peerData[localID][foreignID].pc.connectionState == "connected") {
@@ -140,6 +148,13 @@ async function _createOffer(localID, foreignID) {
   } else {
     await preparePC(localID, foreignID);
 
+    var offerOptions = {
+      offerToReceiveAudio: 1,
+      offerToReceiveVideo: 1
+    };
+
+    console.log(offerOptions);
+
     var offer = await peerData[localID][foreignID].pc.createOffer(offerOptions)
     await peerData[localID][foreignID].pc.setLocalDescription(offer);
 
@@ -147,10 +162,21 @@ async function _createOffer(localID, foreignID) {
   }
 }
 
-async function preparePC(localID, foreignID){
+function prepareID(localID){
   if (!(localID in peerData)) {
     peerData[localID] = {};
   }
+
+  if(!(localID in clientSources)){
+    clientSources[localID] = {};
+    clientSources[localID]["audio"] = "";
+    clientSources[localID]["video"] = "";
+  }
+}
+
+async function preparePC(localID, foreignID){
+  prepareID(localID);
+
   peerData[localID][foreignID] = {pc:"none", foreignID:foreignID, iceCandidates:[], dataStr:"wait", remoteStream: new MediaStream(), localStream: new MediaStream()}
 
   var newVid = document.createElement('video');
@@ -188,10 +214,14 @@ async function preparePC(localID, foreignID){
     }
   });
 
-  let localStream = await navigator.mediaDevices.getUserMedia(audVidConstraintsLocal);
+  //let localStream = await navigator.mediaDevices.getUserMedia(clientSources[localID]["local constraints"]);
 
-  peerData[localID][foreignID].localStream = await navigator.mediaDevices.getUserMedia(audVidConstraints);
-  peerData[localID][foreignID].localStream.getTracks().forEach((track) => {peerData[localID][foreignID].pc.addTrack(track, localStream); console.log("track attached");});
+  if(clientSources[localID]["audio"] != "" || clientSources[localID]["video"] != ""){
+    peerData[localID][foreignID].localStream = await navigator.mediaDevices.getUserMedia(clientSources[localID]["constraints"]);
+    peerData[localID][foreignID].localStream.getTracks().forEach((track) => {peerData[localID][foreignID].pc.addTrack(track); console.log("track attached");});
+  }  else {
+    console.log(localID + " has no constraints?");
+  }
 }
 
 function _checkAsyncDone(localID, foreignID) {
@@ -341,9 +371,12 @@ var createAccept = LINKS.kify(_createAccept);
 var hangup = LINKS.kify(_hangup);
 var hangupAll = LINKS.kify(_hangupAll);
 
-var showInputs = LINKS.kify(_showInputs);
-var setInputs = LINKS.kify(_setInputs);
-var basicInputs = LINKS.kify(_basicInputs);
+var collectSources = LINKS.kify(_collectSources);
+var checkSourcesCollected = LINKS.kify(_checkSourcesCollected);
+
+var getAudioSources =  LINKS.kify(_getAudioSources);
+var getVideoSources = LINKS.kify(_getVideoSources);
+var setSources = LINKS.kify(_setSources);
 
 var setWriteLoc = LINKS.kify(_setWriteLoc);
 

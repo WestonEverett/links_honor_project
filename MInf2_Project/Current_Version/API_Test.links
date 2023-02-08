@@ -51,6 +51,8 @@ fun handleNewCallClient() {
 
 fun addCallButton(myID, otherID) {
 
+  var _ = if(myID == otherID) {VidAPI.setSources(myID, "true", "true") } else {};
+
   var divID = myID ^^ "-" ^^ otherID;
 
   var buttonXML = if(myID == otherID) {
@@ -112,8 +114,6 @@ fun clientLoop(myIDs, allIDs) {
 
 fun prepClient() {
   serverPid ! Register(self());
-
-  VidAPI.setInputs();
   clientLoop([], [])
 }
 

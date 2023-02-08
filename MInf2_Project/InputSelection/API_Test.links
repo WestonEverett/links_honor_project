@@ -52,10 +52,11 @@ fun handleNewCallClient() {
 fun addCallButton(myID, otherID) {
 
   var divID = myID ^^ "-" ^^ otherID;
+  var buttonDivID = divID ^^ ".buttons";
 
   var buttonXML = if(myID == otherID) {
       <div>
-        <div>
+        <div id = "{buttonDivID}">
           <button type="submit" l:onclick="{VidAPI.playLocalVid(myID)}">Call {stringToXml(otherID)}</button>
           <button type="submit" l:onclick="{VidAPI.hangupAll(myID)}">Hangup All</button>
           <button type="submit" l:onclick="{VidAPI.setOutgoingAudio(myID, myID, true)}">Re-Enable Outgoing Audio</button>
@@ -67,7 +68,7 @@ fun addCallButton(myID, otherID) {
       </div>
   } else {
       <div>
-        <div>
+        <div id = "{buttonDivID}">
           <button type="submit" l:onclick="{VidAPI.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>
           <button type="submit" l:onclick="{VidAPI.hangup(myID, otherID)}">Hangup {stringToXml(otherID)}</button>
           <button type="submit" l:onclick="{VidAPI.setOutgoingAudio(myID, otherID, false)}">Disable Outgoing Audio</button>
@@ -80,7 +81,23 @@ fun addCallButton(myID, otherID) {
   };
 
   var idString = "div" ^^ myID;
-  appendChildren(buttonXML, getNodeById(idString))
+  appendChildren(buttonXML, getNodeById(idString));
+
+  var _ = if(myID == otherID) {
+    var (auds, vids) = VidAPI.getSources();
+    var _ = for (aud <- auds) {
+      var buttonXML = <button type="submit" l:onclick="{VidAPI.setSources(myID, aud, "")}">{stringToXml(aud)}</button>;
+      appendChildren(buttonXML, getNodeById(buttonDivID));
+      []
+    };
+    var _ = for (vid <- vids) {
+      var buttonXML = <button type="submit" l:onclick="{VidAPI.setSources(myID, "", vid)}">{stringToXml(vid)}</button>;
+      appendChildren(buttonXML, getNodeById(buttonDivID));
+      []
+    };
+    ()
+  } else {()};
+  ()
 }
 
 fun handleOtherCallClient(myIDs, id) {
@@ -113,10 +130,6 @@ fun clientLoop(myIDs, allIDs) {
 fun prepClient() {
   serverPid ! Register(self());
 
-  VidAPI.collectSources();
-  var (auds, vids) = VidAPI.getSources();
-
-  VidAPI.setInputs();
   clientLoop([], [])
 }
 

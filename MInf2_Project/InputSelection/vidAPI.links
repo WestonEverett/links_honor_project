@@ -11,11 +11,11 @@ module JSFFI {
     hangup: (String, String) ~> ();
     hangupAll: (String) ~> ();
 
-    basicInputs: () ~> ();
     collectSources: () ~> ();
     checkSourcesCollected: () ~> (Bool);
     getAudioSources: () ~> ([String]);
     getVideoSources: () ~> ([String]);
+    setSources: (String, String, String) ~> ();
 
     setWriteLoc: (String, String, String) ~> ();
     checkDeviceSet: () ~> (String);
@@ -214,11 +214,6 @@ fun hangupAll(myID) {
   serverPid ! Send(myID, HangupAll(myID))
 }
 
-fun setInputs() {
-  JSFFI.basicInputs();
-  ()
-}
-
 fun setWriteLoc(localID, foreignID, loc) {
   JSFFI.setWriteLoc(localID, foreignID, loc)
 }
@@ -247,20 +242,11 @@ fun checkSourcesCollected() {
   }
 }
 
-fun collectSources() {
-  JSFFI.collectSources();
-  checkSourcesCollected()
-}
-
 fun getSources() {
+  JSFFI.collectSources();
+  checkSourcesCollected();
   var audioSources = JSFFI.getAudioSources();
-  print("made it past audio");
   var videoSources = JSFFI.getVideoSources();
-  print("made it past video");
-
-  print(intToString(length(audioSources)));
-
-  print(hd(audioSources));
 
   (audioSources, videoSources)
 }
@@ -273,8 +259,12 @@ fun waitForDeviceSet() {
   }
 }
 
+fun setSources(localID, aud, vid) {
+  JSFFI.setSources(localID, aud, vid);
+  waitForDeviceSet()
+}
+
 fun playLocalVid(localID) {
-  waitForDeviceSet();
   JSFFI.playLocalVideo(localID);
   ()
 }
