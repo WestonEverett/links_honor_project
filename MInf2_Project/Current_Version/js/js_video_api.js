@@ -368,6 +368,23 @@ function _setIncomingVideo(localID, foreignID, toBool){
   }
 }
 
+function _getConnectedIDs(localID){
+  if (!(localID in peerData)) {
+    return toLinksArray([]);
+  }
+
+  var arr = [];
+  for (foreignID in peerData[localID]){
+    if(peerData[localID][foreignID].pc.connectionState == "connected"){
+      arr.push(foreignID);
+    }
+  }
+
+  return toLinksArray(arr);
+}
+
+var getConnectedIDs = LINKS.kify(_getConnectedIDs);
+
 var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);
 var createAnswer = LINKS.kify(_createAnswer);

@@ -108,6 +108,14 @@ fun clientLoop(myIDs, allIDs) {
 
     case NewCaller(source, id) ->
         handleOtherCallClient(myIDs, id);
+
+        var _ = for (myID <- myIDs) {
+          for (callerID <- VidAPI.getConnectedIDs(myID)){
+            print(myID ^^ " calling " ^^ callerID);
+            []
+          }
+        };
+
         clientLoop(myIDs, id :: allIDs)
       }
   }

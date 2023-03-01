@@ -4,6 +4,8 @@ module JSFFI {
   alien javascript "/js/js_video_api.js" {
     playLocalVideo : (String) ~> ();
 
+    getConnectedIDs : (String) ~> ([String]);
+
     createOffer: (String, String) ~> ();
     createAnswer: (String, String, String) ~> ();
     createAccept: (String, String, String) ~> ();
@@ -267,4 +269,8 @@ fun setSources(localID, aud, vid) {
 fun playLocalVid(localID) {
   JSFFI.playLocalVideo(localID);
   ()
+}
+
+fun getConnectedIDs(localID) {
+  JSFFI.getConnectedIDs(localID)
 }
