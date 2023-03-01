@@ -110,8 +110,12 @@ fun clientLoop(myIDs, allIDs) {
         handleOtherCallClient(myIDs, id);
 
         var _ = for (myID <- myIDs) {
-          for (callerID <- VidAPI.getConnectedIDs(myID)){
-            print(myID ^^ " calling " ^^ callerID);
+          for (callerID <- ["1", "2", "3"]){
+            var temp = if (VidAPI.checkIfConnected(myID, callerID)){
+              print(myID ^^ " calling " ^^ callerID)
+            } else {
+              print(myID ^^ " not calling " ^^ callerID)
+            };
             []
           }
         };

@@ -383,7 +383,20 @@ function _getConnectedIDs(localID){
   return toLinksArray(arr);
 }
 
+function _checkIfConnected(localID, foreignID){
+  if (!(localID in peerData)) {
+    return false;
+  }
+
+  if (!(foreignID in peerData[localID])) {
+    return false;
+  }
+
+  return peerData[localID][foreignID].pc.connectionState == "connected";
+}
+
 var getConnectedIDs = LINKS.kify(_getConnectedIDs);
+var checkIfConnected = LINKS.kify(_checkIfConnected);
 
 var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);

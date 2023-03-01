@@ -5,6 +5,7 @@ module JSFFI {
     playLocalVideo : (String) ~> ();
 
     getConnectedIDs : (String) ~> ([String]);
+    checkIfConnected : (String, String) ~> (Bool);
 
     createOffer: (String, String) ~> ();
     createAnswer: (String, String, String) ~> ();
@@ -273,4 +274,8 @@ fun playLocalVid(localID) {
 
 fun getConnectedIDs(localID) {
   JSFFI.getConnectedIDs(localID)
+}
+
+fun checkIfConnected(localID, foreignID) {
+  JSFFI.checkIfConnected(localID, foreignID)
 }
