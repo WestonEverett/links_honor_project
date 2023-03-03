@@ -1,0 +1,470 @@
+open import Mvu;
+open import MvuHTML;
+open import MvuAttrs;
+open import MvuEvents;
+open import MvuSubscriptions;
+import MvuCommands;
+import VidAPI;
+
+
+module WebRTC {
+  alien javascript "/js/webRTC_functions.js" {
+    setupRTCConnection : (wild) ~%~> ();
+    createOfferSDP : (wild) ~%~> ();
+    getOfferSDP : (wild) ~%~> (String);
+    isLocalSDP : (wild) ~%~> (Bool);
+    createAnswerSDP : (wild) ~%~> ();
+    receiveOfferSDP : (wild, String) ~%~> ();
+    isRemoteSDP : (wild) ~%~> (Bool);
+    getLocalVideo : () ~%~> ();
+    isLocalVideo : () ~%~> (Bool);
+    getIsNewIceCandidate : (wild) ~%~> (String);
+    getNewIceCandidates : (wild) ~%~> (String);
+    addNewIceCandidates : (wild, String) ~%~> ();
+    closeRTCConnection : (wild) ~%~> ();
+  }
+}
+
+var startxind = 5;
+var startyind = 5;
+
+var sqwidth = 50;
+var sqheight = 50;
+var rows = 1400 / sqheight;
+var columns = 1400 / sqwidth;
+
+
+fun broadcastPid(pid, id, currentPids, newroom, oldroom) server {
+  switch (currentPids) {
+    case [] -> ()
+    case p::ps ->
+      var proc = first(p);
+      if (oldroom == "None"){
+        proc ! RequestPosition(pid)
+      }
+      else {
+
+      };
+      if (second(p) == id){
+        broadcastPid(pid, id, ps, newroom, oldroom)
+      }
+      else{
+        if (third(p) == newroom){
+          print("same room");
+          print(newroom);
+          proc ! NewPidRegistered(pid);
+          VidAPI.callClient(id, second(p));
+          broadcastPid(pid, id, ps, newroom, oldroom)
+        }
+        else{
+          if (third(p) == oldroom){
+            print("different rooms");
+            print(oldroom);
+            VidAPI.hangup(id, second(p));
+            VidAPI.hangup(second(p), id);
+            broadcastPid(pid, id, ps, newroom, oldroom)
+          }else{
+            broadcastPid(pid, id, ps, newroom, oldroom)
+          }
+        }
+      }
+
+  }
+}
+
+fun broadcastCharacterMovement(pids, pos) server {
+  switch(pids){
+    case [] ->
+      ()
+    case p::ps ->
+      var proc = first(p);
+      if(second(p) == pos.pid){
+        proc ! Move(pos);
+        broadcastCharacterMovement(ps, pos)
+      }else{
+        proc ! OtherMoved(pos);
+        broadcastCharacterMovement(ps, pos)
+      }
+  }
+}
+
+fun createRow(height, width, row, columns){
+  for (c <- columns){
+    if(row >= 1.0 && row <= 9.0 && c >= 1 && c <= 11){
+      [(tpos=height*.row, lpos=width*.intToFloat(c), room="Lounge")]
+    }
+    else if(row >= 1.0 && row <= 7.0 && c >= 18 && c <= 27){
+      [(tpos=height*.row, lpos=width*.intToFloat(c), room="Kitchen")]
+    }
+    else if(row >= 12.0 && row <= 23.0 && c >= 20 && c <= 27){
+      [(tpos=height*.row, lpos=width*.intToFloat(c), room="Study")]
+    }
+    else if(row >= 14.0 && row <= 26.0 && c >= 1 && c <= 15){
+      [(tpos=height*.row, lpos=width*.intToFloat(c), room="Ballroom")]
+    }
+    else{
+      [(tpos=height*.row, lpos=width*.intToFloat(c), room="Lobby")]
+    }
+  }
+}
+
+
+
+fun createGrid(height, width, rows, columns){
+  for (r <- rows){
+    [createRow(height, width, intToFloat(r), columns)]
+  }
+}
+
+fun getGridPos(grid, pid, currxind, curryind,code){
+  switch(code){
+        case "Init" ->
+          var newxind = currxind;
+          var newyind = curryind;
+          var square = selectElem(selectElem(grid, newxind), newyind);
+          var newroom = square.room;
+          var newxpos = square.tpos;
+          var newypos = square.lpos;
+          (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+        case "ArrowDown" ->
+          if (currxind == rows-2){
+            var newxind = currxind;
+            var newyind = curryind;
+            var square = selectElem(selectElem(grid, newxind), newyind);
+            var newroom = square.room;
+            var newxpos = square.tpos;
+            var newypos = square.lpos;
+            (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+          }
+          else {
+            var newxind = currxind+1;
+            var newyind = curryind;
+            var square = selectElem(selectElem(grid, newxind), newyind);
+            var newroom = square.room;
+            var newxpos = square.tpos;
+            var newypos = square.lpos;
+            (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+          }
+
+
+
+        case "ArrowUp" ->
+          if (currxind == 1){
+              var newxind = currxind;
+              var newyind = curryind;
+              var square = selectElem(selectElem(grid, newxind), newyind);
+              var newroom = square.room;
+              var newxpos = square.tpos;
+              var newypos = square.lpos;
+              (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+            }
+            else {
+              var newxind = currxind - 1;
+              var newyind = curryind;
+              var square = selectElem(selectElem(grid, newxind), newyind);
+              var newroom = square.room;
+              var newxpos = square.tpos;
+              var newypos = square.lpos;
+            (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+            }
+        case "ArrowLeft" ->
+          if (curryind == 1){
+              var newxind = currxind;
+              var newyind = curryind;
+              var square = selectElem(selectElem(grid, newxind), newyind);
+              var newroom = square.room;
+              var newxpos = square.tpos;
+              var newypos = square.lpos;
+              (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+            }
+            else {
+              var newxind = currxind;
+              var newyind = curryind - 1;
+              var square = selectElem(selectElem(grid, newxind), newyind);
+              var newroom = square.room;
+              var newxpos = square.tpos;
+              var newypos = square.lpos;
+              (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+            }
+        case "ArrowRight" ->
+          if (curryind == columns-2){
+              var newxind = currxind;
+              var newyind = curryind;
+              var square = selectElem(selectElem(grid, newxind), newyind);
+              var newroom = square.room;
+              var newxpos = square.tpos;
+              var newypos = square.lpos;
+              (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+            }
+            else {
+              var newxind = currxind;
+              var newyind = curryind + 1;
+              var square = selectElem(selectElem(grid, newxind), newyind);
+              var newroom = square.room;
+              var newxpos = square.tpos;
+              var newypos = square.lpos;
+              (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+            }
+        case other ->
+          var newxind = currxind;
+          var newyind = curryind;
+          var square = selectElem(selectElem(grid, newxind), newyind);
+          var newroom = square.room;
+          var newxpos = square.tpos;
+          var newypos = square.lpos;
+          (pid = pid, xind = newxind, yind = newyind, room = newroom, xpos = newxpos, ypos = newypos)
+        }
+}
+
+fun getPid(id, pids){
+  switch(pids){
+    case p::ps ->
+      if (second(p) == id){
+        first(p)
+      }else{
+        getPid(id, ps)
+      }
+  }
+}
+
+fun changeRoom(id, pids, room){
+    switch(pids){
+    case [] ->
+      []
+    case p::ps ->
+      var proc = first(p);
+      if(second(p) == id){
+        (first(p), second(p), room) :: changeRoom(id, ps, room)
+      }else{
+        p :: changeRoom(id, ps, room)
+      }
+  }
+}
+
+# Runs on the server, distributes PID list
+fun connectionServer(grid, pids) server {
+  receive {
+
+    case CreateGrid() ->
+      var newgrid = createGrid(50.0, 50.0, [0..rows], [0..columns]);
+      print("finished grid");
+      connectionServer(newgrid, pids)
+    case Register(newPid, newID) ->
+      var id = newID;
+      var newPos = getGridPos(grid, id, startxind, startyind, "Init");
+      broadcastPid(newPid, id, pids, newPos.room, "None");
+      var newpids = (newPid, id, newPos.room) :: pids;
+      broadcastCharacterMovement(newpids, newPos);
+      # newPid ! SetMyId(id);
+      connectionServer(grid, newpids)
+
+    case SendOffer(pid, initPid, sdp) ->
+      pid ! Offer(initPid, sdp);
+      connectionServer(grid, pids)
+
+    case SendAnswer(initPid, pid, sdp) ->
+      initPid ! Answer(pid, sdp);
+      connectionServer(grid, pids)
+
+    case SendIceCandidates(initPid, pid, candidates) ->
+      pid ! NewIceCandidates(initPid, candidates);
+      connectionServer(grid, pids)
+
+    case CharacterMoved(id, currxind, curryind, currroom, code) ->
+      var newPos = getGridPos(grid, id, currxind, curryind, code);
+      var pid = getPid(id, pids);
+
+      if (newPos.room <> currroom){
+        print("NEW ROOM");
+        print(newPos.room);
+        broadcastPid(pid, id, pids, newPos.room, currroom);
+        broadcastCharacterMovement(pids, newPos);
+        var newpids = changeRoom(id, pids, newPos.room);
+        connectionServer(grid, newpids)
+      }else{
+        broadcastCharacterMovement(pids, newPos);
+        connectionServer(grid, pids)
+      }
+  }
+}
+
+
+var serverPid = spawn { connectionServer([], []) };
+
+fun clientLoop(handler) client {
+  receive {
+    case StartRegistration() ->
+      var mypid = self();
+      var myid = VidAPI.startClient("localVideoContainer");
+
+      domReplaceChildren(<#></#>, getNodeById("localVideoContainer"));
+
+      var (auds, vids) = VidAPI.getSources();
+      VidAPI.setSources(myid, hd(auds), hd(vids));
+      VidAPI.playLocalVid(myid);
+
+      serverPid ! Register(mypid, myid);
+      clientLoop(handler)
+
+    case SetMyId(id) ->
+      dispatch(SetPid(id), handler);
+      clientLoop(handler)
+
+
+    case NewPidRegistered(pid) ->
+      domReplaceChildren(
+          <#>
+          New pid
+          </#>, getNodeById("messageDisplay")
+      );
+      pid ! SendMessage("hello");
+      clientLoop(handler)
+
+    case RequestPosition(pid) ->
+      dispatch(SendPosition(), handler);
+      clientLoop(handler)
+
+    case SendMessage(msg) ->
+      domReplaceChildren(<#>{stringToXml(msg)}</#>, getNodeById("messageDisplay"));
+      clientLoop(handler)
+
+    case Move(pos) ->
+      dispatch(IMoved(pos), handler);
+      clientLoop(handler)
+
+    case OtherMoved(pos) ->
+      dispatch(OtherMoved(pos), handler);
+      clientLoop(handler)
+}
+}
+
+fun updateOthersPositions(currentArray, newarray, pos){
+  switch(currentArray){
+    case [] -> pos::newarray
+    case p::ps ->
+      if (p.pid == pos.pid){
+        newarray ++ [pos] ++ ps
+      }
+      else{
+        updateOthersPositions(ps,p::newarray, pos)
+      }
+
+  }
+}
+
+typename Model = (myPosition: (pid: String, xind: Int, yind: Int, room: String, xpos: Float, ypos: Float), othersPositions: [(pid: String, xind: Int, yind: Int, room: String, xpos: Float, ypos: Float)]);
+typename Msg = [|SetPid: String | UpdateEvent: KeyboardEvent | IMoved: (pid: String, xind: Int, yind: Int, room: String, xpos: Float, ypos: Float) | OtherMoved: (pid: String, xind: Int, yind: Int, room: String, xpos: Float, ypos: Float) | SendPosition |];
+
+sig updt : (Msg, Model) ~> Model
+fun updt(msg, model){
+  switch(msg) {
+    case SetPid(mypid) ->
+      print("I am "^^mypid);
+      (myPosition= (pid=mypid, xind= model.myPosition.xind, yind= model.myPosition.yind, room = model.myPosition.room, xpos=model.myPosition.xpos, ypos=model.myPosition.ypos), othersPositions= model.othersPositions)
+    case UpdateEvent(evt) ->
+        var myid = model.myPosition.pid;
+        var code = intToString(evt.code);
+        if (code == "ArrowDown" || code == "ArrowUp" || code == "ArrowLeft" || code == "ArrowRight"){
+          serverPid ! CharacterMoved(myid, model.myPosition.xind, model.myPosition.yind, model.myPosition.room, code);
+          model
+        }else{
+          model
+        }
+
+    case SendPosition() ->
+      serverPid ! CharacterMoved(model.myPosition.pid, model.myPosition.xind, model.myPosition.yind, model.myPosition.room, "Init");
+      model
+    case IMoved(newPos) ->
+      (myPosition = newPos, othersPositions = model.othersPositions)
+
+    case OtherMoved(pos) ->
+      var newPositions = updateOthersPositions(model.othersPositions, [], pos);
+      (myPosition = model.myPosition, othersPositions = newPositions)
+}
+}
+
+fun textPar((k, v)) {
+  p(MvuAttrs.empty, textNode(k ^^ ": " ^^ v))
+}
+
+fun i2s(i) { intToString(i) }
+fun b2s(b) { if(b) { "true" } else { "false"} }
+
+fun getOtherHTML(positions, htmlList) {
+  switch(positions){
+    case [] -> htmlList
+    case p::ps ->
+      var props = MvuHTML.concat(map(textPar,
+      [
+      ("User", p.pid)
+      ]));
+      getOtherHTML(ps, htmlList ++ [div(style("position:absolute;top:"^^ floatToString(p.xpos)^^"px; left:"^^ floatToString(p.ypos)^^ "px; width:50px; height: 50px; outline: 2px solid black;"), props )])
+  }
+}
+
+
+sig view : (Model) ~> HTML(Msg)
+fun view(model) {
+    var props = MvuHTML.concat(map(textPar,
+    [
+    ("User", "ME")
+    ]));
+    MvuHTML.concat([div(style("position:absolute; background-image: url(pixilart-drawing.png);"), textNode("")),MvuHTML.concat(getOtherHTML(model.othersPositions, [])), div(style("position:absolute;top:"^^ floatToString(model.myPosition.xpos)^^"px; left:"^^ floatToString(model.myPosition.ypos)^^ "px; width:50px; height: 50px; outline: 2px solid black;"), props)])
+
+
+}
+
+sig subscriptions : (Model) -> Sub(Msg)
+fun subscriptions(_) {
+  onKeyDown(fun(evt) { UpdateEvent(evt) })
+}
+
+fun clientStart(){
+  var handler = runHandle("placeholder", (myPosition=(pid="None", xind=startxind, yind=startyind, room="Lobby", xpos=50.0, ypos=50.0), othersPositions=[]), view,
+      fun (msg, model) { (updt(msg, model), MvuCommands.empty) }, subscriptions,
+      MvuCommands.empty);
+  var body = getNodeById("background");
+  domSetStyleAttrFromRef(body, "height", "1400px");
+  domSetStyleAttrFromRef(body, "width", "1400px");
+  domSetStyleAttrFromRef(body, "background-image", "url(https://art.pixilart.com/sr2a3bba315969e.png)");
+  domSetStyleAttrFromRef(body, "background-position", "center");
+  domSetStyleAttrFromRef(body, "background-size", "cover");
+  domSetStyleAttrFromRef(body, "top", "0px");
+  domSetStyleAttrFromRef(body, "left", "0px");
+  domSetStyleAttrFromRef(body, "position", "absolute");
+  clientLoop(handler)
+}
+
+fun mainPage(serverPid){
+  var clientPid = spawnClient{ clientStart() };
+  page
+    <html>
+      <head>
+        <title>Links - Subscriptions</title>
+      </head>
+      <body>
+        <div id="background">
+        <div id="placeholder">
+        </div>
+        <div id="messageDisplay">
+        </div>
+        <div id="localVideoContainer">
+        <input type="button" value="load" l:onclick="{clientPid ! StartRegistration()}"/>
+        </div>
+        </div>
+      </body>
+    </html>
+
+}
+
+
+fun main() {
+  serverPid ! CreateGrid;
+  print("started");
+  addRoute("/", fun(_) {mainPage(serverPid)});
+  addStaticRoute("/js", "js", [("js", "text/javascript")]);
+  serveWebsockets();
+  servePages()
+}
+
+main()

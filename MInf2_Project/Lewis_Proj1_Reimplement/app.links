@@ -1,0 +1,782 @@
+open import MvuHTML;
+open import MvuAttrs;
+open import MvuEvents;
+open import MvuSubscriptions;
+import Mvu;
+import MvuCommands;
+import VidAPI;
+import WebRTC;
+
+typename ID = Int;
+
+module JSApp {
+  alien javascript "js/app.js" {
+    displayLiveStream : (ID) ~> ();
+    displayedPeerStream : (ID) ~> Bool;
+    removePeerVideoDiv : (ID) ~> ();
+    takePicture : () ~> ();
+    getPictureURL : () ~> String;
+    displayIcon : (ID, String, String, String) ~> ();
+    getSelectedOptions : () ~> [String];
+    addPeerToList : (ID) ~> ();
+  }
+}
+
+#broacasts message to all clients on server
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case x::xs ->
+            x ! msg;
+            broadcast(xs, msg)
+    }
+}
+
+#waits for message, sends message to call clients on server
+fun serverLoop(clients) server {
+    receive {
+        case Register(pid) ->
+          var newClients = pid :: clients;
+          serverLoop(newClients)
+
+        case BroadcastMessage(msg) ->
+          broadcast(clients, Message(msg));
+          serverLoop(clients)
+    }
+}
+
+var serverPid = spawn { serverLoop([]) };
+
+typename DeviceID = String;
+
+#different ways the character can move
+typename CharacterState = [| Up | Down | Left | Right |];
+
+typename PositionInfo = (id: ID, x : Float, y : Float);
+typename IconInfo = (id: ID, name : String, imageURL : String, x : Float, y : Float);
+
+typename ServerMessage =
+  [| CharacterPosition : PositionInfo
+   | CharacterIcon : IconInfo
+  |];
+
+#messages that the updt function receives
+typename Msg =
+  [| NewFrame
+   | MoveChar : CharacterState
+   | StopChar : CharacterState
+   | UpdateNameField : String
+   | NameEntered
+   | MediaChosen : (String, String)
+   | Joined
+   | NoOp
+   | ServerMsg : ServerMessage
+  |];
+
+typename RequestMsg =
+  [| Message : ServerMessage
+   | RetrieveMsg : Process({hear : ServerMessage})
+  |];
+
+#datetype for character
+typename CharacterData =
+  (id: ID,
+   name: String,
+   x : Float,
+   y: Float,
+   imageURL : String
+  );
+
+typename DirectionRecord =
+  (up : Bool,
+   down : Bool,
+   left : Bool,
+   right : Bool
+  );
+
+#this is the model for MVU
+typename Room =
+  (charData : CharacterData,
+   directions : DirectionRecord,
+   state : String,
+   nameField : String,
+   cameraId : DeviceID,
+   micId : DeviceID,
+   others : [CharacterData],
+   pid : Process({hear : RequestMsg})
+  );
+
+#parameters
+var halfWidth = 560.0;
+var halfHeight = 315.0;
+var charVelocity = 5.0;
+
+#default room to start with
+fun defaultRoom(clientPid) {
+  (charData =
+    (id = 0,
+     name = "None",
+     x = halfWidth,
+     y = halfHeight,
+     imageURL = "None"
+    ),
+   directions =
+    (up = false,
+     down = false,
+     left = false,
+     right = false
+    ),
+   state = "enterName",
+   nameField = "",
+   cameraId = "None",
+   micId = "None",
+   others = [],
+   pid = clientPid
+  )
+}
+
+#runs every frame
+fun animFrameHandler() {
+  animationFrame(fun(_) { NewFrame })
+}
+
+var upKey = "ArrowUp";
+var downKey = "ArrowDown";
+var leftKey = "ArrowLeft";
+var rightKey = "ArrowRight";
+var spaceKey = " ";
+
+#handler to detect keydown event
+fun keyDownHandler() {
+  open MvuSubscriptions;
+
+  onKeyDown(fun(evt) {
+    var keycode = evt.key;
+    if (keycode == upKey) {
+      MoveChar(Up)
+    } else if (keycode == downKey) {
+      MoveChar(Down)
+    } else if (keycode == leftKey) {
+      MoveChar(Left)
+    } else if (keycode == rightKey) {
+      MoveChar(Right)
+    } else {
+      NoOp
+    }
+  })
+}
+
+#handler to detect keyup event
+fun keyUpHandler() {
+  open MvuSubscriptions;
+
+  onKeyUp(fun(evt) {
+    var keycode = evt.key;
+    if (keycode == upKey) {
+      StopChar(Up)
+    } else if (keycode == downKey) {
+      StopChar(Down)
+    } else if (keycode == leftKey) {
+      StopChar(Left)
+    } else if (keycode == rightKey) {
+      StopChar(Right)
+    } else {
+      NoOp
+    }
+  })
+}
+
+#as user types into name box, this function is called
+fun updateFieldHandler() {
+  onInput(fun(str) { UpdateNameField(str) })
+}
+
+#when user presses enter, their name is passed into
+#their character data and joins room
+fun enterHandler() {
+  onEnter(fun() { NameEntered })
+}
+
+fun pictureClickHandler() {
+  onClick(fun() { Joined })
+}
+
+fun mediaClickHandler() {
+  onClick(fun() {
+    var deviceIds = JSApp.getSelectedOptions();
+    var camId = hd(deviceIds);
+    var micId = hd(tl(deviceIds));
+    MediaChosen(camId, micId)
+  })
+}
+
+fun isCharInList(c, lst) {
+  switch(lst) {
+    case [] -> false
+    case x::xs ->
+      if (x.id == c.id)
+        true
+      else
+        isCharInList(c, xs)
+  }
+}
+
+sig setCharacterDirection : (DirectionRecord, CharacterState) ~> DirectionRecord
+fun setCharacterDirection(directions, direction) {
+  if (direction == Up) {
+    (directions with up = true)
+  } else if (direction == Down) {
+    (directions with down = true)
+  } else if (direction == Left) {
+    (directions with left = true)
+  } else {
+    (directions with right = true)
+  }
+}
+
+sig unsetCharacterDirection : (DirectionRecord, CharacterState) ~> DirectionRecord
+fun unsetCharacterDirection(directions, direction) {
+  if (direction == Up) {
+    (directions with up = false)
+  } else if (direction == Down) {
+    (directions with down = false)
+  } else if (direction == Left) {
+    (directions with left = false)
+  } else {
+    (directions with right = false)
+  }
+}
+
+#moves character in certain direction
+sig moveChar : (CharacterData, DirectionRecord) ~> CharacterData
+fun moveChar(charData, directions) {
+  var yDis0 = 0.0;
+  var yDis1 = if (directions.up == true) {
+    yDis0 -. charVelocity
+  } else {
+    yDis0
+  };
+  var yDis2 = if (directions.down == true) {
+    yDis1 +. charVelocity
+  } else {
+    yDis1
+  };
+  var xDis0 = 0.0;
+  var xDis1 = if (directions.left == true) {
+    xDis0 -. charVelocity
+  } else {
+    xDis0
+  };
+  var xDis2 = if (directions.right == true) {
+    xDis1 +. charVelocity
+  } else {
+    xDis1
+  };
+  (charData with x = charData.x +. xDis2, y = charData.y +. yDis2)
+}
+
+sig characterMoved : (CharacterData, CharacterData) ~> Bool
+fun characterMoved(oldCharData, newCharData) {
+  oldCharData.x <> newCharData.x || oldCharData.y <> newCharData.y
+}
+
+#replaces charData in list of charDatas
+fun replaceChar(char, peerChars) {
+  switch(peerChars) {
+    case [] -> []
+    case x::xs ->
+      if (x.id == char.id)
+        char :: replaceChar(char, xs)
+      else
+        x :: replaceChar(char, xs)
+  }
+}
+
+fun charWithIdExists(id, chars) {
+  switch(chars) {
+    case [] -> false
+    case x::xs ->
+      if (x.id == id)
+        true
+      else
+        charWithIdExists(id, xs)
+  }
+}
+
+fun getCharWithId(id, chars) {
+  switch(chars) {
+    case x::xs ->
+      if (x.id == id)
+        x
+      else
+        getCharWithId(id, xs)
+  }
+}
+
+fun isCloseToPeer(localChar, peerChar) {
+  var distance = sqrt((peerChar.x -. localChar.x)^.2.0 +.
+                      (peerChar.y -. localChar.y)^.2.0
+                     );
+  if (distance <= 150.0)
+    true
+  else
+    false
+}
+
+fun confirmConnection(localChar, peerChar) {
+  if (WebRTC.checkIfConnectedToPeer(peerChar.id)) {
+    JSApp.addPeerToList(peerChar.id);
+    JSApp.displayLiveStream(peerChar.id);
+    var charPos = CharacterPosition(id = localChar.id, x = localChar.x, y = localChar.y);
+    serverPid ! BroadcastMessage(charPos)
+  } else if (not(WebRTC.checkIfPCObjectExists(peerChar.id))){
+    print("Connection doesn't even exist anymore, silly")
+  } else {
+    confirmConnection(localChar, peerChar)
+  }
+}
+
+fun connectToPeer(localChar, peerChar) {
+  print("Calling connectToUser");
+  VidAPI.call(localChar.id, peerChar.id);
+  confirmConnection(localChar, peerChar)
+}
+
+fun connectToPeers(charData, peerChars) {
+  switch(peerChars) {
+    case [] -> ()
+    case x::xs ->
+      if (WebRTC.checkIfPCObjectExists(x.id) == false) {
+        connectToPeer(charData, x);
+        connectToPeers(charData, xs)
+      } else {
+        connectToPeers(charData, xs)
+      }
+  }
+}
+
+fun disconnectFromPeer(localChar, peerChar) {
+  VidAPI.hangup(localChar.id, peerChar.id);
+  #JSApp.removePeerVideoDiv(peerChar.id)
+}
+
+fun disconnectFromPeers(peerChars) {
+  switch(peerChars) {
+    case [] -> ()
+    case x::xs ->
+      disconnectFromPeer(x)
+  }
+}
+
+fun getClosePeers(localChar, others) {
+  switch(others) {
+    case [] -> []
+    case x::xs ->
+      var isClose = isCloseToPeer(localChar, x);
+      if (isClose)
+        x :: getClosePeers(localChar, xs)
+      else
+        getClosePeers(localChar, xs)
+  }
+}
+
+fun getFarPeers(others, closePeers) {
+  switch(others) {
+    case [] -> []
+    case x::xs ->
+      var isFarPeer = not(isCharInList(x, closePeers));
+      if (isFarPeer)
+        x :: getFarPeers(xs, closePeers)
+      else
+        getFarPeers(xs, closePeers)
+  }
+}
+
+fun manageConnections(charData, peerChars) {
+  var closePeers = getClosePeers(charData, peerChars);
+  var farPeers = getFarPeers(peerChars, closePeers);
+  connectToPeers(charData, closePeers);
+  disconnectFromPeers(farPeers);
+  ()
+}
+
+
+#checks to see if a peer's character has been updated by
+#retrieving the new charData
+sig retrieveServerMessage : (%) {}~> Msg
+fun retrieveServerMessage(pid) {
+  spawnWait {
+    pid ! RetrieveMsg(self());
+    receive {
+        case msg -> ServerMsg(msg)
+    }
+  }
+}
+
+#once the user receives an new/updated charData, it updates
+#the room based on it
+sig processServerMsg : (ServerMessage, Room) ~> Room
+fun processServerMsg(serverMsg, room) {
+  switch(serverMsg){
+    case CharacterPosition(info) ->
+      if (info.id <> room.charData.id &&
+          room.state == "joined" &&
+          charWithIdExists(info.id, room.others)
+          ) {
+        var currentChar = getCharWithId(info.id, room.others);
+        var newChar = (currentChar with x = info.x, y = info.y);
+        var newPeerList = replaceChar(newChar, room.others);
+        var isClose = isCloseToPeer(room.charData, newChar);
+        if (isClose) {
+          if (VidAPI.checkIfConnected(room.charData.id, newChar.id) &&
+              not(JSApp.displayedPeerStream(newChar.id))
+              ) {
+            JSApp.addPeerToList(newChar.id);
+            JSApp.displayLiveStream(newChar.id);
+            (room with others = newPeerList)
+          } else {
+            (room with others = newPeerList)
+          }
+        } else {
+          if (WebRTC.checkIfConnectedToPeer(newChar.id) ||
+              WebRTC.checkIfPCObjectExists(newChar.id)
+              ) {
+            disconnectFromPeer(room.charData, newChar);
+            (room with others = newPeerList)
+          } else {
+            (room with others = newPeerList)
+          }
+        }
+      } else {
+        room
+      }
+    case CharacterIcon(info) ->
+      if (info.id <> room.charData.id &&
+          room.state == "joined" &&
+          not(charWithIdExists(info.id, room.others))
+          ) {
+        var charData =
+          (id = info.id,
+           name = info.name,
+           x = info.x,
+           y = info.y,
+           imageURL = info.imageURL
+          );
+        var appendToOthers = charData :: room.others;
+        var cData = room.charData;
+        var charIcon =
+          CharacterIcon(id = cData.id,
+                        name = cData.name,
+                        imageURL = cData.imageURL,
+                        x = room.charData.x,
+                        y = room.charData.y
+                        );
+        serverPid ! BroadcastMessage(charIcon);
+        (room with others = appendToOthers)
+      } else {
+        room
+      }
+  }
+}
+
+#main update function in MVU cycle, runs when message (Msg) is received
+sig updt : (Msg, Room) ~> (Room, MvuCommands.Command(Msg))
+fun updt(msg, room) {
+  switch(msg) {
+
+    #every frame, this is the case, updates room based on room
+    case NewFrame ->
+      var newChar = moveChar(room.charData, room.directions);
+      var charMoved = characterMoved(room.charData, newChar);
+      if (charMoved) {
+        manageConnections(room.charData, room.others);
+        var charPos = CharacterPosition(id = newChar.id, x = newChar.x, y = newChar.y);
+        serverPid ! BroadcastMessage(charPos);
+        ((room with charData = newChar), MvuCommands.empty)
+      } else {
+        (room, MvuCommands.empty)
+      }
+
+    case MoveChar(dir) ->
+      if (room.state == "joined") {
+        var newDirections = setCharacterDirection(room.directions, dir);
+        ((room with directions = newDirections), MvuCommands.empty)
+      } else {
+        (room, MvuCommands.empty)
+      }
+
+    case StopChar(dir) ->
+      if (room.state == "joined") {
+        var newDirections = unsetCharacterDirection(room.directions, dir);
+        ((room with directions = newDirections), MvuCommands.empty)
+      } else {
+        (room, MvuCommands.empty)
+      }
+
+    #updates name field of room with the latest keyboard input
+    case UpdateNameField(str) ->
+      ((room with nameField = str), MvuCommands.empty)
+
+    #updates room state to enter image
+    case NameEntered ->
+      ((room with state = "enterMedia"), MvuCommands.empty)
+
+    #runs when user presses enter, and changes state of room to joined
+    case MediaChosen(cameraID, micID) ->
+      VidAPI.setSources(room.charData.id, micID, cameraID);
+      VidAPI.playLocalVid(room.charData.id);
+      ((room with cameraId = cameraID, micId = micID, state = "enterImage"), MvuCommands.empty)
+
+    case Joined ->
+      JSApp.takePicture();
+      var pictureURL = JSApp.getPictureURL();
+
+      var id = VidAPI.startClient("vids");
+
+      var cData = (room.charData with id = id, name = room.nameField, imageURL = pictureURL);
+      var charIcon = CharacterIcon(id = cData.id, name = cData.name, imageURL = pictureURL, x = cData.x, y = cData.y);
+      serverPid ! BroadcastMessage(charIcon);
+      ((room with charData = cData, state = "joined"), MvuCommands.empty)
+
+    case NoOp -> (room, MvuCommands.empty)
+
+    #runs when the client finds a message (charData) in the client loop process
+    case ServerMsg(msg) ->
+      var room = processServerMsg(msg, room);
+      var f = fun() { retrieveServerMessage(room.pid) };
+      (room, Spawn(f))
+  }
+}
+
+### Rendering
+var ae = MvuAttrs.empty;
+var he = MvuHTML.empty;
+fun ch(xs) { MvuHTML.concat(xs) }
+fun ca(xs) { MvuAttrs.concat(xs) }
+
+#HTML for charData
+sig drawChar : (CharacterData) -> HTML(Msg)
+fun drawChar(c) {
+  var x = c.x;
+  var y = c.y;
+  var name = c.name;
+  div (class ("character") +@
+    style ("left:" ^^ floatToString(x) ^^ "px;top:" ^^ floatToString(y) ^^ "px;position:absolute;" ^^
+    "background-image: url(" ^^ c.imageURL ^^ ");background-position: center;"),
+    p (class("charName"), textNode(name))
+  )
+}
+
+#list of charDatas in HTML
+sig listOfHTMLChars : ([CharacterData]) ~> [HTML(Msg)]
+fun listOfHTMLChars(cs) {
+  switch(cs) {
+    case []         -> []
+    case charData::xs ->
+      var x = charData.x;
+      if (x <> 0.0)
+        drawChar(charData) :: listOfHTMLChars(xs)
+      else
+        listOfHTMLChars(xs)
+  }
+}
+
+sig drawCameraOption : (String, String) ~> HTML(Msg)
+fun drawCameraOption(deviceId, label) {
+  option (
+    ca([
+      id ("cameraOption"),
+      value (deviceId)
+    ]),
+    textNode(label)
+  )
+}
+
+sig drawMicOption : (String, String) ~> HTML(Msg)
+fun drawMicOption(deviceId, label) {
+  option (
+    ca([
+      id ("micOption"),
+      value (deviceId)
+    ]),
+    textNode(label)
+  )
+}
+
+sig listOfDeviceOptions : (([String], [String]), String) ~> [HTML(Msg)]
+fun listOfDeviceOptions(devs, type) {
+  switch(devs) {
+    case ([], []) -> []
+    case (id::xs, label::ys) ->
+      if (type == "camera")
+        drawCameraOption(id, label) :: listOfDeviceOptions((xs, ys), type)
+      else
+        drawMicOption(id, label) :: listOfDeviceOptions((xs, ys), type)
+  }
+}
+
+#HTML UI for welcome page and name box
+fun enterNameView(str) {
+  div (id ("canvas"),
+    div (id ("joinBox"),
+      ch([
+        h1 (id ("welcomeText"), textNode("Enter your name:")),
+        input (
+          ca([
+            type ("text"),
+            name ("enterName"),
+            id ("nameBox"),
+            value (str),
+            updateFieldHandler(),
+            enterHandler()
+          ]),
+          he)
+      ])
+    )
+  )
+}
+
+fun enterMediaView() {
+  var camIds = WebRTC.getDeviceIds("videoinput");
+  var camLabels = WebRTC.getDeviceLabels("videoinput");
+  var micIds = WebRTC.getDeviceIds("audioinput");
+  var micLabels = WebRTC.getDeviceLabels("audioinput");
+  div (id ("canvas"),
+    div (id ("joinBox"),
+      ch([
+        h1 (id ("welcomeText"), textNode("Choose your media")),
+        h3 (id ("videoInput"), textNode("Camera:")),
+        h3 (id ("audioInput"), textNode("Microphone:")),
+        select_(id ("selectCamera"),
+          ch(listOfDeviceOptions((camIds, camLabels), "camera"))
+        ),
+        select_(id ("selectMic"),
+          ch(listOfDeviceOptions((micIds, micLabels), "mic"))
+        ),
+        input (
+          ca([
+            id ("mediaSubmitButton"),
+            type ("submit"),
+            value ("Confirm"),
+            mediaClickHandler()
+          ]),
+          he)
+      ])
+    )
+  )
+}
+
+fun enterImageView() {
+  JSApp.displayLiveStream(0);
+  div (id ("canvas"),
+    div (id ("joinBox"),
+      ch([
+        h1 (id ("welcomeText"), textNode("Take a photo to use as your character icon!")),
+        input (
+          ca([
+            id ("pictureTaker"),
+            type ("submit"),
+            value ("Use"),
+            pictureClickHandler()
+          ]),
+          he)
+      ])
+    )
+  )
+}
+
+fun joinedView(room) {
+  var elem = getNodeById("localVideoDiv");
+  domSetAttributeFromRef(elem, "class", "webcamMode");
+  div (id ("canvas"), ch([
+    drawChar(room.charData),
+    ch(listOfHTMLChars(room.others))
+  ]))
+}
+
+#main view function in MVU cycle, display different HTML bases on state of model
+sig view : (Room) ~> HTML(Msg)
+fun view(room) {
+  if (room.state == "joined") {
+    joinedView(room)
+  } else if (room.state == "enterName") {
+    enterNameView(room.nameField)
+  } else if (room.state == "enterMedia") {
+    enterMediaView()
+  } else {
+    enterImageView()
+  }
+}
+
+#subscriptions to detect events for updt function
+sig subscriptions : (Room) -> Sub(Msg)
+fun subscriptions(model) {
+  animFrameHandler() +^ keyUpHandler() +^ keyDownHandler()
+}
+
+#sends every message to every process
+fun drain(messages, pids) {
+  switch (messages) {
+    case [] -> (messages, pids)
+    case msg :: msgs ->
+      switch (pids) {
+        case [] -> (messages, pids)
+        case pid :: pids ->
+          pid ! msg;
+          (msgs, pids)
+      }
+  }
+}
+
+#invariant, at least one of msgs, pids is empty.
+fun clientLoop(msgs, pids) {
+    receive {
+      case Message(msg) ->
+        var (msgs, pids) = drain(msgs ++ [msg], pids);
+        clientLoop(msgs, pids)
+
+      case RetrieveMsg(pid) ->
+        var (msgs, pids) = drain(msgs, pids ++ [pid]);
+        clientLoop(msgs, pids)
+    }
+}
+
+#begins webRTC connection and registers client with server
+fun clientRegister() {
+  WebRTC.gatherDeviceIds("videoinput");
+  WebRTC.gatherDeviceIds("audioinput");
+  serverPid ! Register(self());
+  clientLoop([], [])
+}
+
+fun runMVU(clientPid) {
+  Mvu.run("placeholder", defaultRoom(clientPid), view, updt,
+      subscriptions, MvuCommands.spawnProc(fun () { retrieveServerMessage(clientPid) }));
+  ()
+}
+
+fun mainPage(serverPid) {
+  var clientPid = spawnClient { clientRegister() };
+  var mvuClient = spawnClient { runMVU(clientPid) };
+  page
+  <html>
+    <head>
+      <title>Room</title>
+      <link rel="stylesheet" href="css/app.css" type="text/css" />
+    </head>
+    <body>
+      <div id="placeholder"></div>
+      <div id="videos"></div>
+    </body>
+  </html>
+}
+
+fun main() {
+  addRoute("/", fun(_) { mainPage(serverPid) });
+  addStaticRoute("/css", "css", [("css", "text/css")]);
+  addStaticRoute("/js", "js", [("js", "text/javascript")]);
+  serveWebsockets();
+  servePages()
+}
+
+main()
