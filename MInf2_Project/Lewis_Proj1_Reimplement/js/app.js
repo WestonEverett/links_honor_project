@@ -1,25 +1,26 @@
 const peerUuids = [];
 const messageTimes = [];
 let imgURL = "";
-const adjectives = ["Excited", "Anxious", "Demonic", "Jumpy", 
-                   "Misunderstood", "Squashed", "Gargantuan","Broad", "Crooked", 
-                   "Curved", "Deep", "Even", "Impartial", "Certain", "Eight", 
-                   "Grubby", "Wiry", "Half", "Merciful", "Uppity", 
-                   "Ahead", "Rainy", "Sunny", "Boorish", "Spiffy", "Flat", "Hilly", 
-                   "Jagged", "Round", "Shallow", "Square", "Steep", "Straight", 
-                   "Thick", "Thin", "Cooing", "Deafening", "Faint", "Harsh", 
-                   "High-pitched", "Hissing", "Hushed", "Husky", "Loud", "Melodic", 
-                   "Moaning", "Mute", "Noisy", "Purring", "Quiet", "Raspy", 
-                   "Screeching", "Shrill", "Silent", "Soft", "Squeaky", "Squealing", 
-                   "Thundering", "Voiceless", "Whispering", "Stupid", "Dumb", 
-                   "Lovely", "Horrid", "Weird", "Flabby", "Silly", "Mup", "Blab", 
-                   "Green", "Blue", "Yelly", "Pure", "Maroon", "Flump", "Flob", 
+const adjectives = ["Excited", "Anxious", "Demonic", "Jumpy",
+                   "Misunderstood", "Squashed", "Gargantuan","Broad", "Crooked",
+                   "Curved", "Deep", "Even", "Impartial", "Certain", "Eight",
+                   "Grubby", "Wiry", "Half", "Merciful", "Uppity",
+                   "Ahead", "Rainy", "Sunny", "Boorish", "Spiffy", "Flat", "Hilly",
+                   "Jagged", "Round", "Shallow", "Square", "Steep", "Straight",
+                   "Thick", "Thin", "Cooing", "Deafening", "Faint", "Harsh",
+                   "High-pitched", "Hissing", "Hushed", "Husky", "Loud", "Melodic",
+                   "Moaning", "Mute", "Noisy", "Purring", "Quiet", "Raspy",
+                   "Screeching", "Shrill", "Silent", "Soft", "Squeaky", "Squealing",
+                   "Thundering", "Voiceless", "Whispering", "Stupid", "Dumb",
+                   "Lovely", "Horrid", "Weird", "Flabby", "Silly", "Mup", "Blab",
+                   "Green", "Blue", "Yelly", "Pure", "Maroon", "Flump", "Flob",
                    "Red", "Poop", "Sloop", "Fyip", "Gymby", "Stapid", "Mallop",
-                   "Vexing", "Aback", "Scared", "Wimp", "Weakly", "Intery", "Massive", 
+                   "Vexing", "Aback", "Scared", "Wimp", "Weakly", "Intery", "Massive",
                    "Party", "Teensy", "Meany", "Malder", "Coper", "Seether", "Crap",
                    "OOTW", "GOAT", "Overweight"];
 
-function _getName(id) {
+function _getName(strid) {
+  let id = parseInt(strid);
   return adjectives[id-1];
 }
 
@@ -33,8 +34,12 @@ function _createAverageTimeButton() {
   button.innerHTML = 'Get average times';
   document.body.appendChild(button);
   button.addEventListener('click', function() {
-    const avg = average(messageTimes);
-    alert('Average processing time: ' + avg);
+    const vid = document.getElementById('localVideo');
+    const htmlElement = Object.getPrototypeOf(Object.getPrototypeOf(Object.getPrototypeOf(vid)));
+    const node = Object.getPrototypeOf(Object.getPrototypeOf(htmlElement));
+    console.log(node);
+    //const avg = average(messageTimes);
+    //alert('Average processing time: ' + avg);
   })
 }
 
@@ -74,7 +79,7 @@ function appendVidToDiv(id, local) {
     divElement.appendChild(newLocalVid);
     const peerCount = peerUuids.length;
     divElement.setAttribute('style', 'position: absolute; left: ' + ((peerCount-1)*200).toString() + 'px;');
-    const videoContainer = document.getElementById('streamScroll'); 
+    const videoContainer = document.getElementById('streamScroll');
     videoContainer.appendChild(divElement);
   }
   document.body.removeChild(localVid);
@@ -153,13 +158,14 @@ function _removePeerAudioDiv(peerUuid) {
   }
 }
 
-function _takePicture() {
-  let video = document.getElementById('localVideo');
+function _takePicture(ID) {
+  let video = document.getElementById("VidOf"+ID);
   let canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
   imgURL = canvas.toDataURL();
+  console.log(imgURL);
 }
 
 function _getPictureURL() {
