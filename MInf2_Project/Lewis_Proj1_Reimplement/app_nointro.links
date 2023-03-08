@@ -113,7 +113,7 @@ fun defaultRoom(clientPid, myID) {
   print("going through default room");
   var localID = myID;
   var localName = JSApp.getName(localID);
-  JSApp.takePicture(myID);
+  #JSApp.takePicture(myID);
   var pictureURL = JSApp.getPictureURL();
   var charIcon = CharacterIcon(id = localID, name = localName, imageURL = pictureURL, x = halfWidth, y = halfHeight);
   serverPid ! BroadcastMessage(charIcon);
@@ -329,12 +329,21 @@ fun isCloseToPeer(localChar, peerChar) {
     false
 }
 
+fun confirmConnection(localChar, peerChar) {
+  if (VidAPI.checkIfConnected(localChar.id, peerChar.id)) {
+    ()
+  } else {
+    confirmConnection(localChar, peerChar)
+  }
+}
+
 fun connectToPeer(localChar, peerChar) {
   if(VidAPI.checkIfConnected(localChar.id, peerChar.id)){
     print("Already connected to " ^^ peerChar.id)
   } else {
     print("Calling connectToUser to " ^^ peerChar.id);
-    VidAPI.callClient(localChar.id, peerChar.id)
+    VidAPI.callClient(localChar.id, peerChar.id);
+    confirmConnection(localChar, peerChar)
   }
 }
 
@@ -342,7 +351,7 @@ fun connectToPeers(charData, peerChars) {
   switch(peerChars) {
     case [] -> ()
     case x::xs ->
-      connectToPeer(charData, x);
+      var _ = spawnClient{ connectToPeer(charData, x) };
       connectToPeers(charData, xs)
   }
 }

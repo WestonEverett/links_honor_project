@@ -6,25 +6,6 @@ open import MvuSubscriptions;
 import MvuCommands;
 import VidAPI;
 
-
-module WebRTC {
-  alien javascript "/js/webRTC_functions.js" {
-    setupRTCConnection : (wild) ~%~> ();
-    createOfferSDP : (wild) ~%~> ();
-    getOfferSDP : (wild) ~%~> (String);
-    isLocalSDP : (wild) ~%~> (Bool);
-    createAnswerSDP : (wild) ~%~> ();
-    receiveOfferSDP : (wild, String) ~%~> ();
-    isRemoteSDP : (wild) ~%~> (Bool);
-    getLocalVideo : () ~%~> ();
-    isLocalVideo : () ~%~> (Bool);
-    getIsNewIceCandidate : (wild) ~%~> (String);
-    getNewIceCandidates : (wild) ~%~> (String);
-    addNewIceCandidates : (wild, String) ~%~> ();
-    closeRTCConnection : (wild) ~%~> ();
-  }
-}
-
 var startxind = 5;
 var startyind = 5;
 
