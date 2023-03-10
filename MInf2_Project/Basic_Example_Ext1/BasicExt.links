@@ -6,7 +6,7 @@ fun broadcast(clients, msg) server {
     switch (clients) {
         case [] -> ()
         case clientPid::clients ->
-            clientPid ! ServerBroadcast(clientPid, msg);
+            clientPid ! ServerMessage(msg);
             broadcast(clients, msg)
     }
 }
@@ -23,7 +23,7 @@ fun serverLoop(clients) server {
       serverLoop(clients)
 
     case Send(clientPid, msg) ->
-      clientPid ! ServerBroadcast(clientPid, msg);
+      clientPid ! ServerMessage(msg);
       serverLoop(clients)
 
     }
@@ -34,8 +34,8 @@ var serverPid = spawn { serverLoop([]) };
 fun addButtons(myID, id) {
   var buttonDiv =
     <div>
-      <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, id, false)}">Disable Incoming Video of {id}</button>
-      <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, id, true)}">Enable Incoming Video of {id}</button>
+      <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, id, false)}">Disable Incoming Video of {stringToXml(id)}</button>
+      <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, id, true)}">Enable Incoming Video of {stringToXml(id)}</button>
     </div>;
 
     appendChildren(buttonDiv, getNodeById("buttons"))
@@ -44,9 +44,9 @@ fun addButtons(myID, id) {
 ##Client
 fun clientLoop(myID) {
   receive {
-      case ServerBroadcast(clientPid, msg) ->
-        switch msg {
-          case NewUser(id) ->
+      case ServerMessage(msg) ->
+        switch (msg) {
+          case NewUser(clientPid, id) ->
             if(id <> myID){
               VidAPI.callClient(myID, id);
               addButtons(myID, id);
@@ -67,8 +67,10 @@ fun initializeClient() {
   serverPid ! Register(self());
   var myID = VidAPI.startClient("defaultWriteLocation");
   var (audioSources, videoSources) = VidAPI.getSources();
-  VidAPI.setSources(myID, hd(audioSources), hd(videoSources));
-  serverPid ! Broadcast(NewUser(myID));
+  var audSource = if(length(audioSources) > 0) hd(audioSources) else "";
+  var vidSource = if(length(videoSources) > 0) hd(videoSources) else "";
+  VidAPI.setSources(myID, audSource, vidSource);
+  serverPid ! Broadcast(NewUser(self(), myID));
   clientLoop(myID)
 }
 
