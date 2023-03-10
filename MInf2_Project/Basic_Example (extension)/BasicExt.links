@@ -1,0 +1,97 @@
+import VidAPI;
+
+##Server
+
+fun broadcast(clients, msg) server {
+    switch (clients) {
+        case [] -> ()
+        case clientPid::clients ->
+            clientPid ! ServerBroadcast(clientPid, msg);
+            broadcast(clients, msg)
+    }
+}
+
+fun serverLoop(clients) server {
+
+  receive {
+
+    case Register(clientPid) ->
+      serverLoop(clientPid :: clients)
+
+    case Broadcast(msg) ->
+      broadcast(clients, msg);
+      serverLoop(clients)
+
+    case Send(clientPid, msg) ->
+      clientPid ! ServerBroadcast(clientPid, msg);
+      serverLoop(clients)
+
+    }
+}
+
+var serverPid = spawn { serverLoop([]) };
+
+fun addButtons(myID, id) {
+  var buttonDiv =
+    <div>
+      <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, id, false)}">Disable Incoming Video of {id}</button>
+      <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, id, true)}">Enable Incoming Video of {id}</button>
+    </div>;
+
+    appendChildren(buttonDiv, getNodeById("buttons"))
+}
+
+##Client
+fun clientLoop(myID) {
+  receive {
+      case ServerBroadcast(clientPid, msg) ->
+        switch msg {
+          case NewUser(id) ->
+            if(id <> myID){
+              VidAPI.callClient(myID, id);
+              addButtons(myID, id);
+              serverPid ! Send(clientPid, ExistingUser(myID));
+              clientLoop(myID)
+            } else {
+              clientLoop(myID)
+            }
+
+          case ExistingUser(id) ->
+            addButtons(myID, id);
+            clientLoop(myID)
+        }
+      }
+  }
+
+fun initializeClient() {
+  serverPid ! Register(self());
+  var myID = VidAPI.startClient("defaultWriteLocation");
+  var (audioSources, videoSources) = VidAPI.getSources();
+  VidAPI.setSources(myID, hd(audioSources), hd(videoSources));
+  serverPid ! Broadcast(NewUser(myID));
+  clientLoop(myID)
+}
+
+fun mainPage() {
+
+  var clientPid = spawnClient {initializeClient()};
+
+  page
+    <html>
+      <div id = "buttons"/>
+      <div id = "defaultWriteLocation"/>
+    </html>
+}
+
+fun main() {
+    # Spawns a process on the server which keeps track of all clients
+    # Registers the "mainPage" route
+    addStaticRoute("/js", "js", [("js", "text/javascript")]);
+    addRoute("/", fun(_) { mainPage() });
+    # Starts the server and distribution
+    serveWebsockets();
+    servePages()
+}
+
+
+main()
