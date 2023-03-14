@@ -57,7 +57,7 @@ typename Vector = (x : Float, y : Float);
 typename CharacterState = [| Up | Down | Left | Right |];
 
 typename PositionInfo = (id: ID, x : Float, y : Float);
-typename IconInfo = (id: ID, name : String, imageURL : String, x : Float, y : Float);
+typename IconInfo = (id: ID, name : String, imageURL : String, callIDs : [String], x : Float, y : Float);
 
 typename ServerMessage =
   [| CharacterPosition : PositionInfo
@@ -80,6 +80,7 @@ typename RequestMsg =
 typename CharacterData =
   (id: ID,
    name: String,
+   callIDs: [String],
    x : Float,
    y: Float,
    imageURL : String
@@ -115,11 +116,12 @@ fun defaultRoom(clientPid, myID) {
   var localName = JSApp.getName(localID);
   #JSApp.takePicture(myID);
   var pictureURL = JSApp.getPictureURL();
-  var charIcon = CharacterIcon(id = localID, name = localName, imageURL = pictureURL, x = halfWidth, y = halfHeight);
+  var charIcon = CharacterIcon(id = localID, name = localName, imageURL = pictureURL, callIDs = [], x = halfWidth, y = halfHeight);
   serverPid ! BroadcastMessage(charIcon);
   (charData =
     (id = localID,
      name = localName,
+     callIDs = [],
      x = halfWidth,
      y = halfHeight,
      imageURL = pictureURL
@@ -397,12 +399,34 @@ fun getFarPeers(others, closePeers) {
   }
 }
 
+fun isIn(toLookFor, b){
+  switch (b) {
+    case [] -> false
+    case bCur::b ->
+      if(bCur == toLookFor) {
+        true
+      } else {
+        isIn(toLookFor, b)
+      }
+  }
+}
+
+fun getNew(origChars, newChars){
+  for(curChar <- newChars){
+    if(not(isIn(curChar.id, origChars))){
+      [curChar]
+    } else {
+      []
+    }
+  }
+}
+
 fun manageConnections(charData, peerChars) {
   var closePeers = getClosePeers(charData, peerChars);
   var farPeers = getFarPeers(peerChars, closePeers);
-  connectToPeers(charData, closePeers);
+  connectToPeers(charData, getNew(charData.callIDs, closePeers));
   disconnectFromPeers(charData, farPeers);
-  ()
+  closePeers
 }
 
 #once the user receives an new/updated charData, it updates
@@ -424,10 +448,10 @@ fun processServerMsg(serverMsg, room) {
       print("Recieved Character Icon");
       if (info.id <> room.charData.id && not(charWithIdExists(info.id, room.others))) {
         print("and it's new?");
-        var charData = (id = info.id, name = info.name, x = info.x, y = info.y, imageURL = info.imageURL);
+        var charData = (id = info.id, name = info.name, x = info.x, y = info.y, callIDs = info.callIDs, imageURL = info.imageURL);
         var appendToOthers = charData :: room.others;
         var cData = room.charData;
-        var charIcon = CharacterIcon(id = cData.id, name = cData.name, imageURL = cData.imageURL, x = room.charData.x, y = room.charData.y);
+        var charIcon = CharacterIcon(id = cData.id, name = cData.name, imageURL = cData.imageURL, callIDs = cData.callIDs, x = room.charData.x, y = room.charData.y);
         serverPid ! BroadcastMessage(charIcon);
         (room with others = appendToOthers)
       } else {
@@ -447,8 +471,11 @@ fun updt(msg, room) {
       if (charMoved) {
         var charPos = CharacterPosition(id = newChar.id, x = newChar.x, y = newChar.y);
         serverPid ! BroadcastMessage(charPos);
-        manageConnections(room.charData, room.others);
-        ((room with charData = newChar), MvuCommands.empty)
+        var newCallers = manageConnections(room.charData, room.others);
+        var newCallIDs = for(caller <- newCallers){
+          [caller.id]
+        };
+        ((room with charData = (newChar with callIDs = newCallIDs)), MvuCommands.empty)
       } else {
         (room, MvuCommands.empty)
       }

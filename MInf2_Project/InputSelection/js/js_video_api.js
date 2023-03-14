@@ -38,37 +38,49 @@ function _getVideoSources(){
   return toLinksArray(availableSources["video"].map(function (element) {return element.label}));
 }
 
+function _anyAudioSource(localID){
+  deviceSet = "";
+  prepareID(localID);
+  clientSources[localID]["audio"] = "any";
+  _setSources(localID, "", "")
+}
+
+function _noAudioSource(localID){
+  deviceSet = "";
+  prepareID(localID);
+  clientSources[localID]["audio"] = "";
+  _setSources(localID, "", "")
+}
+
+function _anyVideoSource(localID){
+  deviceSet = "";
+  prepareID(localID);
+  clientSources[localID]["video"] = "any";
+  _setSources(localID, "", "")
+}
+
+function _noVideoSource(localID){
+  deviceSet = "";
+  prepareID(localID);
+  clientSources[localID]["video"] = "";
+  _setSources(localID, "", "")
+}
+
 function _setSources(localID, audioLabel, videoLabel){
-  deviceSet = ""
+  deviceSet = "";
 
   prepareID(localID);
 
   if(audioLabel != ""){
-    if(audioLabel == "false"){
-      clientSources[localID]["audio"] = "";
-    }
-    else if(audioLabel == "true"){
-      clientSources[localID]["audio"] = "any";
-    }
-    else {
-      clientSources[localID]["audio"] = availableSources["audio"].find(function (element) {
-        return element.label == audioLabel
-      }).value;
-    }
+    clientSources[localID]["audio"] = availableSources["audio"].find(function (element) {
+      return element.label == audioLabel
+    });
   }
 
   if(videoLabel != ""){
-    if(videoLabel == "false"){
-      clientSources[localID]["video"] = "";
-    }
-    else if(videoLabel == "true"){
-      clientSources[localID]["video"] = "any";
-    }
-    else {
-      clientSources[localID]["video"] = availableSources["video"].find(function (element) {
-        return element.label == videoLabel
-      }).value;
-    }
+    clientSources[localID]["video"] = availableSources["video"].find(function (element) {
+      return element.label == videoLabel
+    });
   }
 
   clientSources[localID]["constraints"] = {
@@ -84,7 +96,7 @@ function _setSources(localID, audioLabel, videoLabel){
     clientSources[localID]["constraints"]["audio"] = true;
   }
   else if(clientSources[localID]["audio"] != "") {
-    clientSources[localID]["constraints"]["audio"] = {deviceId: {exact: clientSources[localID]["audio"]}};
+    clientSources[localID]["constraints"]["audio"] = {deviceId: {exact: clientSources[localID]["audio"].deviceId}};
   } else {
     console.log(localID + " Currently no audio selected");
   }
@@ -94,8 +106,8 @@ function _setSources(localID, audioLabel, videoLabel){
     clientSources[localID]["local constraints"]["video"] = true;
   }
   else if(clientSources[localID]["video"] != "") {
-    clientSources[localID]["constraints"]["video"] = {deviceId: {exact: clientSources[localID]["video"]}};
-    clientSources[localID]["local constraints"]["video"] = {deviceId: {exact: clientSources[localID]["video"]}};
+    clientSources[localID]["constraints"]["video"] = {deviceId: {exact: clientSources[localID]["video"].deviceId}};
+    clientSources[localID]["local constraints"]["video"] = {deviceId: {exact: clientSources[localID]["video"].deviceId}};
   } else {
     console.log(localID + " Currently no video selected");
   }
@@ -146,7 +158,10 @@ async function _playLocalVideo(ID) {
 
 async function _createOffer(localID, foreignID) {
 
-  if((localID in peerData && foreignID in peerData[localID]) && peerData[localID][foreignID].pc.connectionState == "connected") {
+  if((localID in peerData && foreignID in peerData[localID]) &&
+    (peerData[localID][foreignID].pc.connectionState == "connected" ||
+    peerData[localID][foreignID].pc.connectionState == "connecting"))
+  {
     peerData[localID][foreignID].dataStr = "call in progress";
     console.log("call already in progress");
   } else {
@@ -156,6 +171,8 @@ async function _createOffer(localID, foreignID) {
       offerToReceiveAudio: 1,
       offerToReceiveVideo: 1
     };
+
+    console.log(offerOptions);
 
     var offer = await peerData[localID][foreignID].pc.createOffer(offerOptions)
     await peerData[localID][foreignID].pc.setLocalDescription(offer);
@@ -366,6 +383,36 @@ function _setIncomingVideo(localID, foreignID, toBool){
   }
 }
 
+function _getConnectedIDs(localID){
+  if (!(localID in peerData)) {
+    return toLinksArray([]);
+  }
+
+  var arr = [];
+  for (foreignID in peerData[localID]){
+    if(peerData[localID][foreignID].pc.connectionState == "connected"){
+      arr.push(foreignID);
+    }
+  }
+
+  return toLinksArray(arr);
+}
+
+function _checkIfConnected(localID, foreignID){
+  if (!(localID in peerData)) {
+    return false;
+  }
+
+  if (!(foreignID in peerData[localID])) {
+    return false;
+  }
+
+  return peerData[localID][foreignID].pc.connectionState == "connected";
+}
+
+var getConnectedIDs = LINKS.kify(_getConnectedIDs);
+var checkIfConnected = LINKS.kify(_checkIfConnected);
+
 var playLocalVideo = LINKS.kify(_playLocalVideo);
 var createOffer = LINKS.kify(_createOffer);
 var createAnswer = LINKS.kify(_createAnswer);
@@ -379,6 +426,10 @@ var checkSourcesCollected = LINKS.kify(_checkSourcesCollected);
 var getAudioSources =  LINKS.kify(_getAudioSources);
 var getVideoSources = LINKS.kify(_getVideoSources);
 var setSources = LINKS.kify(_setSources);
+var noAudioSource = LINKS.kify(_noAudioSource);
+var anyAudioSource = LINKS.kify(_anyAudioSource);
+var noVideoSource = LINKS.kify(_noVideoSource);
+var anyVideoSource = LINKS.kify(_anyVideoSource);
 
 var setWriteLoc = LINKS.kify(_setWriteLoc);
 

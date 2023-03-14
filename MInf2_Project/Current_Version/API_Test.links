@@ -51,7 +51,7 @@ fun handleNewCallClient() {
 
 fun addCallButton(myID, otherID) {
 
-  var _ = if(myID == otherID) {VidAPI.setSources(myID, "true", "true") } else {};
+  var _ = if(myID == otherID) {VidAPI.anyAudioSource(myID); VidAPI.anyVideoSource(myID)} else {};
 
   var divID = myID ^^ "-" ^^ otherID;
 

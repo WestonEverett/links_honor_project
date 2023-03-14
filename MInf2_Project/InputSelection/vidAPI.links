@@ -4,6 +4,9 @@ module JSFFI {
   alien javascript "/js/js_video_api.js" {
     playLocalVideo : (String) ~> ();
 
+    getConnectedIDs : (String) ~> ([String]);
+    checkIfConnected : (String, String) ~> (Bool);
+
     createOffer: (String, String) ~> ();
     createAnswer: (String, String, String) ~> ();
     createAccept: (String, String, String) ~> ();
@@ -16,6 +19,10 @@ module JSFFI {
     getAudioSources: () ~> ([String]);
     getVideoSources: () ~> ([String]);
     setSources: (String, String, String) ~> ();
+    noAudioSource: (String) ~> ();
+    anyAudioSource: (String) ~> ();
+    noVideoSource: (String) ~> ();
+    anyVideoSource: (String) ~> ();
 
     setWriteLoc: (String, String, String) ~> ();
     checkDeviceSet: () ~> (String);
@@ -207,7 +214,8 @@ fun callClient(myID, foreignID) {
 }
 
 fun hangup(myID, foreignID) {
-  serverPid ! Send(myID, Hangup(myID, foreignID))
+  serverPid ! Send(myID, Hangup(myID, foreignID));
+  serverPid ! Send(myID, Hangup(foreignID, myID))
 }
 
 fun hangupAll(myID) {
@@ -264,7 +272,35 @@ fun setSources(localID, aud, vid) {
   waitForDeviceSet()
 }
 
+fun clearAudioSource(localID) {
+  JSFFI.noAudioSource(localID);
+  waitForDeviceSet()
+}
+
+fun clearVideoSource(localID) {
+  JSFFI.noVideoSource(localID);
+  waitForDeviceSet()
+}
+
+fun anyAudioSource(localID) {
+  JSFFI.anyAudioSource(localID);
+  waitForDeviceSet()
+}
+
+fun anyVideoSource(localID) {
+  JSFFI.anyVideoSource(localID);
+  waitForDeviceSet()
+}
+
 fun playLocalVid(localID) {
   JSFFI.playLocalVideo(localID);
   ()
+}
+
+fun getConnectedIDs(localID) {
+  JSFFI.getConnectedIDs(localID)
+}
+
+fun checkIfConnected(localID, foreignID) {
+  JSFFI.checkIfConnected(localID, foreignID)
 }

@@ -59,10 +59,6 @@ fun addCallButton(myID, otherID) {
         <div id = "{buttonDivID}">
           <button type="submit" l:onclick="{VidAPI.playLocalVid(myID)}">Call {stringToXml(otherID)}</button>
           <button type="submit" l:onclick="{VidAPI.hangupAll(myID)}">Hangup All</button>
-          <button type="submit" l:onclick="{VidAPI.setOutgoingAudio(myID, myID, true)}">Re-Enable Outgoing Audio</button>
-          <button type="submit" l:onclick="{VidAPI.setOutgoingVideo(myID, myID, true)}">Re-Enable Outgoing Video</button>
-          <button type="submit" l:onclick="{VidAPI.setIncomingAudio(myID, myID, true)}">Re-Enable Incoming Audio</button>
-          <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, myID, true)}">Re-Enable Incoming Video</button>
         </div>
         <div id = "{divID}"></div>
       </div>
@@ -71,10 +67,6 @@ fun addCallButton(myID, otherID) {
         <div id = "{buttonDivID}">
           <button type="submit" l:onclick="{VidAPI.callClient(myID, otherID)}">Call {stringToXml(otherID)}</button>
           <button type="submit" l:onclick="{VidAPI.hangup(myID, otherID)}">Hangup {stringToXml(otherID)}</button>
-          <button type="submit" l:onclick="{VidAPI.setOutgoingAudio(myID, otherID, false)}">Disable Outgoing Audio</button>
-          <button type="submit" l:onclick="{VidAPI.setOutgoingVideo(myID, otherID, false)}">Disable Outgoing Video</button>
-          <button type="submit" l:onclick="{VidAPI.setIncomingAudio(myID, otherID, false)}">Disable Incoming Audio</button>
-          <button type="submit" l:onclick="{VidAPI.setIncomingVideo(myID, otherID, false)}">Disable Incoming Video</button>
         </div>
         <div id = "{divID}"></div>
       </div>

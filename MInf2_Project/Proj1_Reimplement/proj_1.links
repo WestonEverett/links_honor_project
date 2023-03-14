@@ -5,9 +5,6 @@ typename AudVidMods = (mute:Bool, deaf:Bool, hid:Bool, blind:Bool);
 typename UserClientRecord = (clientDesc:ClientDescription, audVidMods:AudVidMods);
 
 fun displayLocalVid(myID) {
-  var vidXML = <video id = "local_vid" autoplay = "true" style="object-fit:cover; width:320px; height:240px"></video>;
-  appendChildren(vidXML, getNodeById("vids"));
-
   VidAPI.playLocalVid(myID)
 }
 

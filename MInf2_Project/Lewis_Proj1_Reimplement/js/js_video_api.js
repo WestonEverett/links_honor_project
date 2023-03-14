@@ -146,7 +146,10 @@ async function _playLocalVideo(ID) {
 
 async function _createOffer(localID, foreignID) {
 
-  if((localID in peerData && foreignID in peerData[localID]) && peerData[localID][foreignID].pc.connectionState == "connected") {
+  if((localID in peerData && foreignID in peerData[localID]) &&
+    (peerData[localID][foreignID].pc.connectionState == "connected" ||
+    peerData[localID][foreignID].pc.connectionState == "connecting")) 
+  {
     peerData[localID][foreignID].dataStr = "call in progress";
     console.log("call already in progress");
   } else {
