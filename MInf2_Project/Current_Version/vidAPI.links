@@ -177,6 +177,10 @@ fun callClientLoop() {
 
     case HangupAll(myID) ->
       print("Hanging up all connections on " ^^ myID);
+      var _ = for (id <- JSFFI.getConnectedIDs(myID)){
+        serverPid ! Send(id, (Hangup(id, myID)));
+        []
+      };
       JSFFI.hangupAll(myID);
       callClientLoop()
 
